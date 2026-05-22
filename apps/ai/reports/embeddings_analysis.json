@@ -1,0 +1,35 @@
+{
+  "n_items": 400,
+  "n_genres": 15,
+  "embedding_dim": 128,
+  "norm_stats": {
+    "mean": 0.3907923102378845,
+    "std": 0.019024424254894257,
+    "min": 0.30878379940986633,
+    "max": 0.4732294976711273
+  },
+  "knn_intra_genre_at_10": 0.54,
+  "knn_random_baseline": 0.06815,
+  "knn_lift": 7.923697725605282,
+  "pca_variance_top2": [
+    0.08483447134494781,
+    0.0756901428103447
+  ],
+  "genres_distribution": {
+    "Drama": 33,
+    "Misterio": 32,
+    "Terror": 31,
+    "Suspense": 29,
+    "Aventura": 29,
+    "Fantasia": 29,
+    "Musical": 28,
+    "Historico": 28,
+    "Animacao": 26,
+    "Acao": 25,
+    "Documentario": 25,
+    "Comedia": 22,
+    "Romance": 22,
+    "FiccaoCientifica": 22,
+    "Crime": 19
+  }
+}

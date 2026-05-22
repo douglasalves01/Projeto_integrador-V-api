@@ -1,0 +1,8 @@
+{
+  "n_users": 400,
+  "n_contents": 150,
+  "n_interactions": 10774,
+  "views_per_user_mean": 26.935,
+  "completion_mean": 0.6097687952478189,
+  "positive_rate": 0.5041767217375163
+}

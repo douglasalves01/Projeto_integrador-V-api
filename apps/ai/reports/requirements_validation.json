@@ -1,0 +1,104 @@
+{
+  "checks": [
+    {
+      "code": "RFIA01",
+      "name": "Acuracia (HitRate@10 >= 0.70)",
+      "status": "PASS",
+      "detail": {
+        "measured_hr10": 0.7418278852568378,
+        "target": 0.7,
+        "vs_popularity": 2.8010075566750627,
+        "vs_random": 4.014440433212996
+      }
+    },
+    {
+      "code": "RFIA02",
+      "name": "Latencia (P95 <= 2000 ms)",
+      "status": "PASS",
+      "detail": {
+        "measured_p95_ms": 2.491451449986925,
+        "p50_ms": 1.8771045001813036,
+        "p99_ms": 3.1895781598268504,
+        "target_ms": 2000.0,
+        "samples": 200
+      }
+    },
+    {
+      "code": "RFIA03",
+      "name": "Cold start (< 5 views usa PopularityFallback)",
+      "status": "PASS",
+      "detail": {
+        "threshold": 5,
+        "empty_history_returns_empty": true,
+        "below_threshold_uses_popularity": true,
+        "above_threshold_uses_vodrec": true,
+        "strategies_observed": [
+          "empty_history",
+          "cold_start",
+          "vodrec"
+        ]
+      }
+    },
+    {
+      "code": "RFIA04",
+      "name": "Perfil atualizado a cada interacao (saida varia com novo evento)",
+      "status": "PASS",
+      "detail": {
+        "before_top10": [
+          152,
+          391,
+          346,
+          332,
+          365,
+          326,
+          22,
+          380,
+          239,
+          221
+        ],
+        "after_top10": [
+          105,
+          165,
+          368,
+          248,
+          98,
+          109,
+          72,
+          179,
+          152,
+          208
+        ],
+        "overlap": 1,
+        "reactive": true
+      }
+    },
+    {
+      "code": "AUTH",
+      "name": "Modelo construido (sem sklearn/implicit/transformers no nucleo)",
+      "status": "PASS",
+      "detail": {
+        "imports": [
+          "__future__",
+          "dataclasses",
+          "json",
+          "math",
+          "pathlib",
+          "torch",
+          "typing"
+        ],
+        "classes_proprias": [
+          "FeedForward",
+          "MultiHeadSelfAttention",
+          "TransformerBlock",
+          "VodRecTransformer"
+        ],
+        "evidence": "Apenas torch/PyTorch nativo + std-lib. Sem libs de ML pronta."
+      }
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "total": 5,
+    "ok": true
+  }
+}

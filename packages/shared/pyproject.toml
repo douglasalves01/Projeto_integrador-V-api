@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vod-shared"
+version = "0.1.0"
+description = "Contratos Pydantic compartilhados entre API, IA e Analytics"
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.5"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

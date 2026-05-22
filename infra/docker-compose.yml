@@ -1,0 +1,115 @@
+# Monorepo VOD — stack unificada.
+# Sobe a partir da raiz do repo:
+#   docker compose -f infra/docker-compose.yml up --build
+#
+# Servicos:
+#   db        Postgres 16 (unico banco — usado por API, IA e Analytics)
+#   redis     cache em memoria para a IA
+#   api       FastAPI Postgres (apps/api)
+#   ai        FastAPI + PyTorch (apps/ai) — VodRec + VodChat
+#   analytics container "oneshot" — roda jobs sob demanda via `docker compose run`
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: vod_db
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-streaming_db}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - vod_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: vod_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - vod_net
+
+  api:
+    build:
+      context: ..
+      dockerfile: infra/api.Dockerfile
+    container_name: vod_api
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-streaming_db}
+      SECRET_KEY: ${SECRET_KEY:-change-me}
+      AI_SERVICE_URL: http://ai:8000/api/v1
+      AI_ENABLED: "true"
+    ports:
+      - "8001:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - vod_net
+    restart: unless-stopped
+
+  ai:
+    build:
+      context: ..
+      dockerfile: infra/ai.Dockerfile
+    container_name: vod_ai
+    environment:
+      DATABASE_URL: postgresql+psycopg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-streaming_db}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${SECRET_KEY:-change-me}      # mesmo segredo da API
+      VODREC_MODEL_PATH: /app/models/vodrec/model.pt
+      VODREC_VOCAB_PATH: /app/models/vodrec/vocab.json
+      VODCHAT_ADAPTER_PATH: /app/models/vodchat/vodchat-lora-final
+      LLM_ENABLED: "true"
+      VODCHAT_ENABLED: "false"  # desligado por padrao (pesado em CPU)
+    ports:
+      - "8002:8000"
+    volumes:
+      - ../apps/ai/models:/app/models:ro
+      - hf_cache:/root/.cache/huggingface
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - vod_net
+    restart: unless-stopped
+
+  analytics:
+    build:
+      context: ..
+      dockerfile: infra/analytics.Dockerfile
+    container_name: vod_analytics
+    profiles: ["analytics"]   # so sobe quando `docker compose --profile analytics ...`
+    environment:
+      DATABASE_URL: postgresql+psycopg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-streaming_db}
+    volumes:
+      - ../apps/analytics/reports:/app/reports
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - vod_net
+    command: ["python", "-m", "analytics", "export_all"]
+
+volumes:
+  postgres_data:
+  hf_cache:
+
+networks:
+  vod_net:
+    driver: bridge
