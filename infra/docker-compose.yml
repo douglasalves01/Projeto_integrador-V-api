@@ -52,8 +52,16 @@ services:
       SECRET_KEY: ${SECRET_KEY:-change-me}
       AI_SERVICE_URL: http://ai:8000/api/v1
       AI_ENABLED: "true"
+      VIDEO_STORAGE_DIR: /app/videos_storage
+      CATALOG_PARQUET: /app/ai_data/contents.parquet
     ports:
       - "8001:8000"
+    volumes:
+      # Catalogo real (49 videos) — montado read-only para o seed encontrar
+      - ../apps/ai/data:/app/ai_data:ro
+      # Arquivos .mp4 do dataset (versionados no repo, otimizados ~3MB cada)
+      # Override pelo .env: VIDEO_STORAGE_HOST_DIR=/outro/caminho/absoluto
+      - ${VIDEO_STORAGE_HOST_DIR:-../apps/api/videos_storage}:/app/videos_storage:ro
     depends_on:
       db:
         condition: service_healthy
@@ -66,6 +74,10 @@ services:
       context: ..
       dockerfile: infra/ai.Dockerfile
     container_name: vod_ai
+    # DNS publico para resolver huggingface.co (DNS interno do Docker as vezes falha)
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       DATABASE_URL: postgresql+psycopg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-streaming_db}
       REDIS_URL: redis://redis:6379/0
@@ -74,7 +86,7 @@ services:
       VODREC_VOCAB_PATH: /app/models/vodrec/vocab.json
       VODCHAT_ADAPTER_PATH: /app/models/vodchat/vodchat-lora-final
       LLM_ENABLED: "true"
-      VODCHAT_ENABLED: "false"  # desligado por padrao (pesado em CPU)
+      VODCHAT_ENABLED: "true"  # LLM textual ligado — baixa TinyLlama (~2GB) na 1a vez
     ports:
       - "8002:8000"
     volumes:

@@ -1,0 +1,448 @@
+[
+  {
+    "index": 1,
+    "query": "cachoeiras brasil natureza",
+    "titulo": "Confira 6 cachoeiras para conhecer no Brasil",
+    "url": "https://www.youtube.com/watch?v=Gn5A0xednhU",
+    "duracao": 192,
+    "pasta": "01_cachoeiras_brasil_natureza",
+    "status": "ok"
+  },
+  {
+    "index": 2,
+    "query": "animais da amazônia documentário",
+    "titulo": "AMAZÔNIA SELVAGEM | DOCUMENTÁRIO | ANIMAIS SELVAGENS da AMAZÔNIA | FLORESTA AMAZÔNICA | RIO AMAZONAS",
+    "url": "https://www.youtube.com/watch?v=-ai-YygzxBw",
+    "duracao": 1803,
+    "pasta": "02_animais_da_amazonia_documentar",
+    "status": "ok"
+  },
+  {
+    "index": 3,
+    "query": "pássaros brasileiros canto",
+    "titulo": "CANTOS dos SABIÁS do BRASIL | Cantos Planeta Aves!",
+    "url": "https://www.youtube.com/watch?v=Qa-VKLid4L8",
+    "duracao": 500,
+    "pasta": "03_passaros_brasileiros_canto",
+    "status": "ok"
+  },
+  {
+    "index": 4,
+    "query": "peixe rio amazônia",
+    "titulo": "GIGANTES DAS ÁGUAS | PEIXE-BOI E O PIRARUCU DA AMAZÔNIA",
+    "url": "https://www.youtube.com/watch?v=vgEnlq7YmfQ",
+    "duracao": 626,
+    "pasta": "04_peixe_rio_amazonia",
+    "status": "ok"
+  },
+  {
+    "index": 5,
+    "query": "onça pintada brasil",
+    "titulo": "Dia da Onça-Pintada: Países da América Latina se unem para salvar as onças-pintadas",
+    "url": "https://www.youtube.com/watch?v=UX4PBevLQCg",
+    "duracao": 63,
+    "pasta": "05_onca_pintada_brasil",
+    "status": "ok"
+  },
+  {
+    "index": 6,
+    "query": "receita brigadeiro simples",
+    "titulo": "COMO FAZER BRIGADEIRO DE COLHER SIMPLES E FÁCIL",
+    "url": "https://www.youtube.com/watch?v=2T9qORuBdMI",
+    "duracao": 162,
+    "pasta": "06_receita_brigadeiro_simples",
+    "status": "ok"
+  },
+  {
+    "index": 7,
+    "query": "como fazer coxinha",
+    "titulo": "COXINHA DE BATATA Perfeita: Crocante por Fora e Macia por Dentro!!!",
+    "url": "https://www.youtube.com/watch?v=0EvRDoElQFE",
+    "duracao": 341,
+    "pasta": "07_como_fazer_coxinha",
+    "status": "ok"
+  },
+  {
+    "index": 8,
+    "query": "receita pão de queijo mineiro",
+    "titulo": "Pão de queijo caseiro CROCANTE e MACIO | Rita Lobo | Cozinha Prática",
+    "url": "https://www.youtube.com/watch?v=gphdJnI8yag",
+    "duracao": 288,
+    "pasta": "08_receita_pao_de_queijo_mineiro",
+    "status": "ok"
+  },
+  {
+    "index": 9,
+    "query": "receita açaí na tigela",
+    "titulo": "How to Make Traditional Acai Bowls (3 ingredients)",
+    "url": "https://www.youtube.com/watch?v=LmBZ5VasP_k",
+    "duracao": 163,
+    "pasta": "09_receita_acai_na_tigela",
+    "status": "ok"
+  },
+  {
+    "index": 10,
+    "query": "feijoada completa preparo",
+    "titulo": "FEIJOADA COMPLETA EM MENOS DE 01 HORA: SIM, É POSSÍVEL!",
+    "url": "https://www.youtube.com/watch?v=lS_5sS8VJFg",
+    "duracao": 325,
+    "pasta": "10_feijoada_completa_preparo",
+    "status": "ok"
+  },
+  {
+    "index": 11,
+    "query": "gol futebol brasileiro",
+    "titulo": "País do Futebol (No Flow) - MC Guimê, Dubdogz, Emicida e Watzgood (KondZilla)",
+    "url": "https://www.youtube.com/watch?v=801gN8_X39E",
+    "duracao": 175,
+    "pasta": "11_gol_futebol_brasileiro",
+    "status": "ok"
+  },
+  {
+    "index": 12,
+    "query": "surf ondas brasil",
+    "titulo": "Surfe em Paraty - Secret com ondas perfeitas  #shotoniphone",
+    "url": "https://www.youtube.com/watch?v=v558zekZhCs",
+    "duracao": 337,
+    "pasta": "12_surf_ondas_brasil",
+    "status": "ok"
+  },
+  {
+    "index": 13,
+    "query": "capoeira treino",
+    "titulo": "Capoeira x Taekwondo",
+    "url": "https://www.youtube.com/watch?v=r0F0nEmayfo",
+    "duracao": 89,
+    "pasta": "13_capoeira_treino",
+    "status": "ok"
+  },
+  {
+    "index": 14,
+    "query": "vôlei de praia brasil",
+    "titulo": "VÔLEI DE PRAIA FEMININO | BRASIL 2 X 1 AUSTRÁLIA | MELHORES MOMENTOS | OLIMPÍADAS PARIS 2024",
+    "url": "https://www.youtube.com/watch?v=CQ3Xs7VSwPo",
+    "duracao": 754,
+    "pasta": "14_volei_de_praia_brasil",
+    "status": "ok"
+  },
+  {
+    "index": 15,
+    "query": "skate manobra brasil",
+    "titulo": "manobras radicais COM SKATE 2 RODAS (Oficial)",
+    "url": "https://www.youtube.com/watch?v=FiQeptI5qOk",
+    "duracao": 15,
+    "pasta": "15_skate_manobra_brasil",
+    "status": "ok"
+  },
+  {
+    "index": 16,
+    "query": "samba raiz brasil",
+    "titulo": "Samba De Raiz  - Conselho",
+    "url": "https://www.youtube.com/watch?v=GSIhGRn28qc",
+    "duracao": 203,
+    "pasta": "16_samba_raiz_brasil",
+    "status": "ok"
+  },
+  {
+    "index": 17,
+    "query": "forró pé de serra",
+    "titulo": "Numa Sala de Reboco (feat. Luiz Gonzaga)",
+    "url": "https://www.youtube.com/watch?v=r3j-3kpz1nM",
+    "duracao": 167,
+    "pasta": "17_forro_pe_de_serra",
+    "status": "ok"
+  },
+  {
+    "index": 18,
+    "query": "baião nordestino",
+    "titulo": "Essa é a melhor receita de baião de dois que você vai comer na sua vida!",
+    "url": "https://www.youtube.com/watch?v=fdblwXPXZVI",
+    "duracao": 180,
+    "pasta": "18_baiao_nordestino",
+    "status": "ok"
+  },
+  {
+    "index": 19,
+    "query": "funk carioca batida",
+    "titulo": "BASE DE FUNK - 150 BPM RIO DE JANEIRO (DJ PEDRO BEAT)",
+    "url": "https://www.youtube.com/watch?v=8-rJKHKxKHY",
+    "duracao": 160,
+    "pasta": "19_funk_carioca_batida",
+    "status": "ok"
+  },
+  {
+    "index": 20,
+    "query": "bossa nova violão",
+    "titulo": "Como tocar bossa nova no violão com apenas 3 acordes !",
+    "url": "https://www.youtube.com/watch?v=GqhcZKWIC-s",
+    "duracao": 696,
+    "pasta": "20_bossa_nova_violao",
+    "status": "ok"
+  },
+  {
+    "index": 21,
+    "query": "tutorial python iniciante",
+    "titulo": "O que eu faria para aprender Python em 2026? (Guia para Iniciantes)",
+    "url": "https://www.youtube.com/watch?v=VWjnpE46QfA",
+    "duracao": 403,
+    "pasta": "21_tutorial_python_iniciante",
+    "status": "ok"
+  },
+  {
+    "index": 22,
+    "query": "inteligência artificial explicação",
+    "titulo": "O que é Inteligência Artificial | Inteligência Artificial em 4 minutos | IA Explicada",
+    "url": "https://www.youtube.com/watch?v=lB4IwJDnvsA",
+    "duracao": 241,
+    "pasta": "22_inteligencia_artificial_explic",
+    "status": "ok"
+  },
+  {
+    "index": 23,
+    "query": "como funciona 5g",
+    "titulo": "O que é e como funciona o 5G?",
+    "url": "https://www.youtube.com/watch?v=wLe1Z_lQEZM",
+    "duracao": 102,
+    "pasta": "23_como_funciona_5g",
+    "status": "ok"
+  },
+  {
+    "index": 24,
+    "query": "dica excel planilha",
+    "titulo": "7 Minutos de Dicas Rápidas e Produtivas de Excel",
+    "url": "https://www.youtube.com/watch?v=_0FY4L8_sV4",
+    "duracao": 507,
+    "pasta": "24_dica_excel_planilha",
+    "status": "ok"
+  },
+  {
+    "index": 25,
+    "query": "programação web html css",
+    "titulo": "Aprenda HTML em apenas 5 MINUTOS (2026)",
+    "url": "https://www.youtube.com/watch?v=5Hn58p-hYC0",
+    "duracao": 300,
+    "pasta": "25_programacao_web_html_css",
+    "status": "ok"
+  },
+  {
+    "index": 26,
+    "query": "christ redentor rio de janeiro",
+    "titulo": "Cristo Redentor destruido",
+    "url": "https://www.youtube.com/watch?v=ZCEE3-MWbow",
+    "duracao": 110,
+    "pasta": "26_christ_redentor_rio_de_janeiro",
+    "status": "ok"
+  },
+  {
+    "index": 27,
+    "query": "lençóis maranhenses paisagem",
+    "titulo": "Lençóis Maranhenses 🇧🇷 Drone Aerial 4K Maranhão | Brazil Brasil",
+    "url": "https://www.youtube.com/watch?v=7Ikc0bRgwHw",
+    "duracao": 143,
+    "pasta": "27_lencois_maranhenses_paisagem",
+    "status": "ok"
+  },
+  {
+    "index": 28,
+    "query": "pantanal brasil flora fauna",
+    "titulo": "QUAIS AS CARACTERÍSTICAS DA FLORA DO PANTANAL?",
+    "url": "https://www.youtube.com/watch?v=nSXbs154STA",
+    "duracao": 72,
+    "pasta": "28_pantanal_brasil_flora_fauna",
+    "status": "ok"
+  },
+  {
+    "index": 29,
+    "query": "ouro preto patrimônio histórico",
+    "titulo": "OURO PRETO, MINAS GERAIS, PATRIMÔNIO HISTÓRICO DA HUMANIDADE",
+    "url": "https://www.youtube.com/watch?v=wTIZk_kTdLA",
+    "duracao": 144,
+    "pasta": "29_ouro_preto_patrimonio_historic",
+    "status": "ok"
+  },
+  {
+    "index": 30,
+    "query": "carnaval salvador bahia",
+    "titulo": "CARNAVAL 2023 DE SALVADOR IVETE NA BARRA",
+    "url": "https://www.youtube.com/watch?v=l-91EAENx1U",
+    "duracao": 71,
+    "pasta": "30_carnaval_salvador_bahia",
+    "status": "ok"
+  },
+  {
+    "index": 31,
+    "query": "curiosidades sobre o universo",
+    "titulo": "Essas são AS MAIORES ESTRUTURAS DO UNIVERSO !!",
+    "url": "https://www.youtube.com/watch?v=Uf-jBQB3aj0",
+    "duracao": 375,
+    "pasta": "31_curiosidades_sobre_o_universo",
+    "status": "ok"
+  },
+  {
+    "index": 32,
+    "query": "história do brasil resumo",
+    "titulo": "As HISTÓRIA do BRASIL em 4 minutos",
+    "url": "https://www.youtube.com/watch?v=QQtYVp--QXo",
+    "duracao": 259,
+    "pasta": "32_historia_do_brasil_resumo",
+    "status": "ok"
+  },
+  {
+    "index": 33,
+    "query": "matematica divertida crianças",
+    "status": "not_found"
+  },
+  {
+    "index": 34,
+    "query": "experimento ciência criança",
+    "titulo": "EXPERIMENTO: COMPROVANDO A EXISTÊNCIA DO AR.",
+    "url": "https://www.youtube.com/watch?v=YG6zFxm5lsw",
+    "duracao": 92,
+    "pasta": "34_experimento_ciencia_crianca",
+    "status": "ok"
+  },
+  {
+    "index": 35,
+    "query": "como funciona o coração",
+    "titulo": "Como o coração funciona? | National Geographic",
+    "url": "https://www.youtube.com/watch?v=Tu0rTXoDSBI",
+    "duracao": 155,
+    "pasta": "35_como_funciona_o_coracao",
+    "status": "ok"
+  },
+  {
+    "index": 36,
+    "query": "meditação guiada português",
+    "titulo": "MEDITAÇÃO CALMA para ALIVIAR Preocupações, Medo e Ansiedade",
+    "url": "https://www.youtube.com/watch?v=pv-aymg97JM",
+    "duracao": 398,
+    "pasta": "36_meditacao_guiada_portugues",
+    "status": "ok"
+  },
+  {
+    "index": 37,
+    "query": "yoga iniciantes português",
+    "titulo": "Yoga para Elevar e Tranquilizar | 10Min- Pri Leite",
+    "url": "https://www.youtube.com/watch?v=C2goOWyQ4pg",
+    "duracao": 561,
+    "pasta": "37_yoga_iniciantes_portugues",
+    "status": "ok"
+  },
+  {
+    "index": 38,
+    "query": "alongamento matinal",
+    "titulo": "ALONGAMENTO RÁPIDO | Para começar bem o dia em 2 minutos (MOVIMENTOS EM PÉ)",
+    "url": "https://www.youtube.com/watch?v=qrpxaI1k27M",
+    "duracao": 171,
+    "pasta": "38_alongamento_matinal",
+    "status": "ok"
+  },
+  {
+    "index": 39,
+    "query": "dicas de saúde mental",
+    "titulo": "Dicas para cuidar da saúde mental",
+    "url": "https://www.youtube.com/watch?v=Thjn9ZPoWoU",
+    "duracao": 117,
+    "pasta": "39_dicas_de_saude_mental",
+    "status": "ok"
+  },
+  {
+    "index": 40,
+    "query": "exercício em casa sem equipamento",
+    "titulo": "💰5 EXERCÍCIOS DE FORÇA SEM EQUIPAMENTO NENHUM (ou Musculação em Casa Grátis) Saúde na Pobreza #7 💸",
+    "url": "https://www.youtube.com/watch?v=fs_fQF-XXXA",
+    "duracao": 205,
+    "pasta": "40_exercicio_em_casa_sem_equipame",
+    "status": "ok"
+  },
+  {
+    "index": 41,
+    "query": "artesanato reciclagem brasil",
+    "titulo": "Como Fazer Artesanato Para Ganhar Dinheiro. 5 Ideias com Embalagens de Bolo",
+    "url": "https://www.youtube.com/watch?v=IbOAVibtoYE",
+    "duracao": 346,
+    "pasta": "41_artesanato_reciclagem_brasil",
+    "status": "ok"
+  },
+  {
+    "index": 42,
+    "query": "pintura aquarela dica",
+    "titulo": "5 dicas valiosas para INICIANTES NA AQUARELA",
+    "url": "https://www.youtube.com/watch?v=8oQ9oGV09-A",
+    "duracao": 481,
+    "pasta": "42_pintura_aquarela_dica",
+    "status": "ok"
+  },
+  {
+    "index": 43,
+    "query": "como fazer vela aromatica",
+    "titulo": "COMO FAZER VELAS AROMÁTICAS | Passo a passo",
+    "url": "https://www.youtube.com/watch?v=JN0SVQJ9ycY",
+    "duracao": 283,
+    "pasta": "43_como_fazer_vela_aromatica",
+    "status": "ok"
+  },
+  {
+    "index": 44,
+    "query": "crochê iniciante passo a passo",
+    "titulo": "CROCHÊ PARA INICIANTES 2025 ✨ como fazer correntinhas de crochê | aprenda crochê do zero",
+    "url": "https://www.youtube.com/watch?v=TRLyB8K31xQ",
+    "duracao": 565,
+    "pasta": "44_croche_iniciante_passo_a_passo",
+    "status": "ok"
+  },
+  {
+    "index": 45,
+    "query": "macrame decoração como fazer",
+    "titulo": "Diy Folhas de Macramê para decoração: passo a passo completo 🍂 | #diy #macrame  #passoapasso",
+    "url": "https://www.youtube.com/watch?v=LAPjviyf0gE",
+    "duracao": 575,
+    "pasta": "45_macrame_decoracao_como_fazer",
+    "status": "ok"
+  },
+  {
+    "index": 46,
+    "query": "eclipse solar explicação",
+    "titulo": "Eclipse Solar - a Lua escondendo o Sol",
+    "url": "https://www.youtube.com/watch?v=8PwgMnGIo3E",
+    "duracao": 144,
+    "pasta": "46_eclipse_solar_explicacao",
+    "status": "ok"
+  },
+  {
+    "index": 47,
+    "query": "como funciona vulcão",
+    "titulo": "Drone captura imagens incríveis de vulcão em erupção na Islândia",
+    "url": "https://www.youtube.com/watch?v=Itr5x8Pli48",
+    "duracao": 105,
+    "pasta": "47_como_funciona_vulcao",
+    "status": "ok"
+  },
+  {
+    "index": 48,
+    "query": "curiosidades sobre abelhas",
+    "titulo": "CURIOSIDADES SOBRE AS ABELHAS",
+    "url": "https://www.youtube.com/watch?v=qhPw4LBOvEE",
+    "duracao": 152,
+    "pasta": "48_curiosidades_sobre_abelhas",
+    "status": "ok"
+  },
+  {
+    "index": 49,
+    "query": "sistema solar planetas",
+    "titulo": "Música planetas  (Se você está contente)",
+    "url": "https://www.youtube.com/watch?v=cBJDWE1GVTI",
+    "duracao": 104,
+    "pasta": "49_sistema_solar_planetas",
+    "status": "ok"
+  },
+  {
+    "index": 50,
+    "query": "como funciona a chuva",
+    "titulo": "Como se forma a chuva? - Ciclo da água",
+    "url": "https://www.youtube.com/watch?v=S3NvUFJ6ppI",
+    "duracao": 173,
+    "pasta": "50_como_funciona_a_chuva",
+    "status": "ok"
+  }
+]

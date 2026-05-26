@@ -1,8 +1,11 @@
 import math
+import re
+from pathlib import Path
 from uuid import UUID
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user, require_role
@@ -114,3 +117,70 @@ async def delete_video(
     db: AsyncSession = Depends(get_db),
 ):
     await video_service.delete_video(db, video_id)
+
+
+# ---------------------------------------------------------------------------
+# Streaming local dos MP4s (dataset)
+# ---------------------------------------------------------------------------
+
+
+_RANGE_RE = re.compile(r"bytes=(\d+)-(\d*)")
+_CHUNK_SIZE = 1024 * 1024  # 1 MB
+
+
+def _stream_file_range(path: Path, start: int, end: int):
+    with path.open("rb") as f:
+        f.seek(start)
+        remaining = end - start + 1
+        while remaining > 0:
+            chunk = f.read(min(_CHUNK_SIZE, remaining))
+            if not chunk:
+                break
+            remaining -= len(chunk)
+            yield chunk
+
+
+@router.get("/{video_id}/stream")
+async def stream_video(video_id: UUID, request: Request):
+    """Serve o arquivo MP4 do dataset com suporte a HTTP Range.
+
+    Sem autenticacao (alguns players nao mandam Authorization em <video>).
+    Em producao adicionar token via query string ou cookie.
+    """
+    from app.services.video_storage import resolve_video_path
+
+    path = resolve_video_path(video_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Video file not found on storage")
+
+    file_size = path.stat().st_size
+    range_header = request.headers.get("range") or request.headers.get("Range")
+
+    if range_header:
+        m = _RANGE_RE.match(range_header)
+        if not m:
+            raise HTTPException(status_code=416, detail="Invalid Range header")
+        start = int(m.group(1))
+        end = int(m.group(2)) if m.group(2) else file_size - 1
+        end = min(end, file_size - 1)
+        if start > end or start >= file_size:
+            raise HTTPException(status_code=416, detail="Range not satisfiable")
+        content_length = end - start + 1
+        headers = {
+            "Content-Range": f"bytes {start}-{end}/{file_size}",
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(content_length),
+            "Content-Type": "video/mp4",
+        }
+        return StreamingResponse(
+            _stream_file_range(path, start, end),
+            status_code=206,
+            headers=headers,
+        )
+
+    # Sem Range: serve o arquivo inteiro
+    return FileResponse(
+        path,
+        media_type="video/mp4",
+        headers={"Accept-Ranges": "bytes"},
+    )

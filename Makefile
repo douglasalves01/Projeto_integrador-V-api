@@ -70,3 +70,26 @@ compose.logs:   ## Tails dos logs
 
 compose.analytics:  ## Roda jobs de analytics (oneshot)
 	docker compose -f infra/docker-compose.yml --profile analytics run --rm analytics
+
+# -------- setup pros colegas (one-shot) --------
+seed.all:       ## Roda todos os seeds (catalogo + demo user + URLs de stream)
+	docker compose -f infra/docker-compose.yml exec api python -m app.seeds.seed_data || true
+	docker compose -f infra/docker-compose.yml exec api python -m app.seeds.seed_real_catalog
+	docker compose -f infra/docker-compose.yml exec api python -m app.seeds.seed_demo_user
+	docker compose -f infra/docker-compose.yml exec api python -m app.seeds.update_video_urls_to_stream
+
+setup:          ## Setup completo pos-clone: compose up + migrate + seed (~3-5 min)
+	@echo "==> Subindo containers..."
+	$(MAKE) compose.up
+	@echo "==> Aguardando Postgres..."
+	@until docker compose -f infra/docker-compose.yml exec -T db pg_isready -U postgres > /dev/null 2>&1; do sleep 1; done
+	@echo "==> Aplicando migrations..."
+	$(MAKE) db.migrate
+	@echo "==> Seedando dados..."
+	$(MAKE) seed.all
+	@echo ""
+	@echo "Tudo pronto!"
+	@echo "  API:       http://localhost:8001/docs"
+	@echo "  IA:        http://localhost:8002/api/v1/llm/info"
+	@echo "  Admin:     admin@streaming.com / admin123  (Dashboard)"
+	@echo "  Demo user: demo@streaming.com / demo1234   (App)"
