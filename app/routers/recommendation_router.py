@@ -2,7 +2,7 @@ import math
 from uuid import UUID
 from typing import List
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user, require_role
@@ -19,11 +19,20 @@ recommendation_service = RecommendationService()
 
 @router.get("/recommendations", response_model=List[RecommendationResponse])
 async def get_recommendations(
+    request: Request,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     user_id = UUID(current_user["user_id"])
-    recommendations = await recommendation_service.get_recommendations(db, user_id)
+    auth_header = request.headers.get("authorization", "")
+    jwt = (
+        auth_header.removeprefix("Bearer ").strip()
+        if auth_header.lower().startswith("bearer ")
+        else None
+    )
+    recommendations = await recommendation_service.get_recommendations(
+        db, user_id, jwt=jwt
+    )
     return recommendations
 
 

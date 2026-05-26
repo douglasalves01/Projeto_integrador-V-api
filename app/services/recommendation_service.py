@@ -41,8 +41,31 @@ class RecommendationService:
         self.session_repo = WatchSessionRepository()
 
     async def get_recommendations(
-        self, db: AsyncSession, user_id: UUID
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        jwt: str | None = None,
     ) -> List[Recommendation]:
+        if jwt:
+            try:
+                from app.integrations.ai_client import get_ai_client
+
+                ai_client = get_ai_client()
+                if ai_client is not None and ai_client.available:
+                    payload = await ai_client.get_recommendations(user_id, jwt=jwt, k=10)
+                    if payload and payload.get("recommendations"):
+                        ai_recommendations = await self._materialize_ai_recommendations(
+                            db, user_id, payload
+                        )
+                        if ai_recommendations:
+                            logger.info(
+                                "Recommendations served by AI (%s)",
+                                payload.get("model_version"),
+                            )
+                            return ai_recommendations
+            except Exception as exc:
+                logger.warning("AI fallback triggered: %s", exc)
+
         # Count user interactions
         interaction_count = await self.interaction_repo.count_user_interactions(db, user_id)
 
@@ -55,6 +78,57 @@ class RecommendationService:
 
         # Personalized recommendations
         return await self._personalized_recommendations(db, user_id, completed_ids)
+
+    async def _materialize_ai_recommendations(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        payload: dict,
+    ) -> List[Recommendation]:
+        items = payload.get("recommendations", [])
+        if not items:
+            return []
+
+        requested_video_ids: set[UUID] = set()
+        for item in items:
+            try:
+                requested_video_ids.add(UUID(str(item["content_id"])))
+            except (KeyError, ValueError):
+                continue
+
+        if not requested_video_ids:
+            return []
+
+        existing_result = await db.execute(
+            select(Video.id).where(Video.id.in_(requested_video_ids))
+        )
+        existing_ids = {row[0] for row in existing_result.all()}
+        if not existing_ids:
+            return []
+
+        await self.recommendation_repo.delete_user_recommendations(db, user_id)
+        output: List[Recommendation] = []
+        for item in items:
+            try:
+                video_id = UUID(str(item["content_id"]))
+                score = float(item.get("score", 0.0))
+            except (KeyError, ValueError, TypeError):
+                continue
+
+            if video_id not in existing_ids:
+                continue
+
+            recommendation = Recommendation(
+                user_id=user_id,
+                video_id=video_id,
+                relevance_score=score,
+                explanation=item.get("reason") or payload.get("strategy", "ai"),
+            )
+            db.add(recommendation)
+            output.append(recommendation)
+
+        await db.flush()
+        return output
 
     async def _popularity_based_recommendations(
         self, db: AsyncSession, user_id: UUID, exclude_ids: List[UUID]

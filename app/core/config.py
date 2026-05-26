@@ -18,9 +18,15 @@ class Settings(BaseSettings):
     APP_NAME: str = "Streaming Recommendation API"
     DEBUG: bool = False
 
+    # AI integration
+    AI_SERVICE_URL: str = "http://localhost:8002/api/v1"
+    AI_SERVICE_API_KEY: str = ""
+    AI_ENABLED: bool = True
+
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 settings = Settings()

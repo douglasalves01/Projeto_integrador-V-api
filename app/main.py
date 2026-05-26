@@ -12,6 +12,14 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    if settings.AI_ENABLED:
+        from app.integrations.ai_client import init_ai_client
+
+        init_ai_client(
+            base_url=settings.AI_SERVICE_URL,
+            api_key=settings.AI_SERVICE_API_KEY or None,
+        )
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
