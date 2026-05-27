@@ -112,7 +112,7 @@ class AIClient:
             return None
         url = f"{self.base_url}/llm/chat/{user_id}"
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=1.0)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=2.0)) as client:
                 resp = await client.post(
                     url, json={"message": message}, headers=self._headers(jwt)
                 )
@@ -122,6 +122,38 @@ class AIClient:
         except (httpx.HTTPError, httpx.TimeoutException) as exc:
             self._breaker.record_failure()
             logger.warning("AI chat failed: %s", exc)
+            return None
+
+    async def encode(self, text: str) -> list[float] | None:
+        """Gera embedding do texto via servico de IA. Retorna vetor 384-dim ou None."""
+        if self._breaker.is_open:
+            return None
+        url = f"{self.base_url}/embeddings/encode"
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=1.0)) as client:
+                resp = await client.get(url, params={"q": text}, headers=self._headers())
+            resp.raise_for_status()
+            self._breaker.record_success()
+            return resp.json().get("embedding")
+        except (httpx.HTTPError, httpx.TimeoutException) as exc:
+            self._breaker.record_failure()
+            logger.warning("AI encode failed: %s", exc)
+            return None
+
+    async def index_embeddings(self) -> dict[str, Any] | None:
+        """Dispara indexacao de embeddings no servico de IA."""
+        if self._breaker.is_open:
+            return None
+        url = f"{self.base_url}/admin/index-embeddings"
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=2.0)) as client:
+                resp = await client.post(url, headers=self._headers())
+            resp.raise_for_status()
+            self._breaker.record_success()
+            return resp.json()
+        except (httpx.HTTPError, httpx.TimeoutException) as exc:
+            self._breaker.record_failure()
+            logger.warning("AI index_embeddings failed: %s", exc)
             return None
 
     async def info(self) -> dict[str, Any] | None:

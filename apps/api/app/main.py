@@ -39,7 +39,7 @@ def create_app() -> FastAPI:
     from app.routers import auth_router, user_router, video_router, genre_router
     from app.routers import category_router, plan_router, favorite_router
     from app.routers import watch_session_router, interaction_router
-    from app.routers import recommendation_router, report_router
+    from app.routers import recommendation_router, report_router, chat_router, admin_router
 
     app.include_router(auth_router.router, prefix="/auth", tags=["Auth"])
     app.include_router(user_router.router, prefix="/users", tags=["Users"])
@@ -52,6 +52,8 @@ def create_app() -> FastAPI:
     app.include_router(interaction_router.router, prefix="/admin", tags=["Interactions"])
     app.include_router(recommendation_router.router, tags=["Recommendations"])
     app.include_router(report_router.router, prefix="/admin/reports", tags=["Reports"])
+    app.include_router(admin_router.router, prefix="/admin", tags=["Admin"])
+    app.include_router(chat_router.router, tags=["Chat"])
 
     return app
 

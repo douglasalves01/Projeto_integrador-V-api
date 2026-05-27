@@ -2,9 +2,13 @@
 
 ## Visão Geral
 
-Este documento descreve todos os endpoints disponíveis para o perfil **USER** na API de Streaming. O usuário pode se registrar, navegar pelo catálogo, assistir vídeos, gerenciar favoritos e receber recomendações personalizadas.
+Este documento descreve todos os endpoints disponíveis para o perfil **USER**.
+O usuário pode se registrar, navegar pelo catálogo, assistir vídeos, buscar
+(inclusive por semântica), favoritar, receber recomendações personalizadas e
+conversar com o assistente VodChat.
 
-**Base URL:** `http://localhost:8000`
+**Base URL:** `http://localhost:8001`  
+**Documentação interativa:** `http://localhost:8001/docs`
 
 ---
 
@@ -28,9 +32,9 @@ POST /auth/register
 
 **Validações:**
 - `name`: 1 a 100 caracteres
-- `email`: formato válido de email
+- `email`: formato válido
 - `password`: 8 a 128 caracteres
-- `plan_id`: UUID de um plano existente
+- `plan_id`: UUID de um plano existente (veja `GET /plans`)
 
 **Resposta (201):**
 ```json
@@ -44,6 +48,8 @@ POST /auth/register
   "created_at": "2025-01-01T00:00:00"
 }
 ```
+
+---
 
 ### Login
 
@@ -68,7 +74,11 @@ POST /auth/login
 }
 ```
 
-### Refresh Token
+O `access_token` expira em **30 minutos**. O `refresh_token` expira em **7 dias**.
+
+---
+
+### Renovar Token
 
 ```
 POST /auth/refresh
@@ -81,13 +91,11 @@ POST /auth/refresh
 }
 ```
 
-**Resposta (200):** Mesmo formato do login.
-
-> O `access_token` expira em **30 minutos**. Use o refresh token para obter novos tokens sem precisar fazer login novamente. O `refresh_token` expira em **7 dias**.
+**Resposta (200):** mesmo formato do login.
 
 ---
 
-## Header de Autenticação
+## Header obrigatório
 
 Todos os endpoints abaixo exigem:
 
@@ -134,42 +142,61 @@ GET /videos?page=1&page_size=20
   "items": [
     {
       "id": "uuid",
-      "title": "Introdução ao Python",
-      "description": "Aula introdutória sobre Python",
-      "url": "https://cdn.example.com/video1.mp4",
-      "duration_seconds": 3600,
-      "release_date": "2025-06-15",
-      "age_rating": "L",
-      "genres": [{"id": "uuid", "name": "Educação"}],
-      "categories": [{"id": "uuid", "name": "Programação"}],
+      "title": "Interestelar",
+      "description": "Uma equipe de astronautas viaja por um buraco de minhoca...",
+      "url": "/videos/uuid/stream",
+      "duration_seconds": 9720,
+      "release_date": "2014-11-07",
+      "age_rating": "12",
+      "genres": [{"id": "uuid", "name": "Ficção Científica"}],
+      "categories": [{"id": "uuid", "name": "Filmes"}],
       "created_at": "2025-01-01T00:00:00",
       "updated_at": "2025-01-01T00:00:00"
     }
   ],
-  "total": 100,
+  "total": 49,
   "page": 1,
   "page_size": 20,
-  "total_pages": 5
+  "total_pages": 3
 }
 ```
+
+---
 
 ### Buscar Vídeos
 
 ```
-GET /videos/search?q=python&genre_id=uuid&category_id=uuid&page=1&page_size=20
+GET /videos/search?q=texto&genre_id=uuid&category_id=uuid&semantic=false&page=1&page_size=20
 ```
 
 **Parâmetros (todos opcionais):**
 
-| Parâmetro     | Tipo   | Descrição                    |
-|---------------|--------|------------------------------|
-| `q`           | string | Texto de busca (título)      |
-| `genre_id`    | UUID   | Filtrar por gênero           |
-| `category_id` | UUID   | Filtrar por categoria        |
+| Parâmetro     | Tipo    | Padrão | Descrição                                                         |
+|---------------|---------|--------|-------------------------------------------------------------------|
+| `q`           | string  | —      | Texto de busca                                                    |
+| `genre_id`    | UUID    | —      | Filtrar por gênero                                                |
+| `category_id` | UUID    | —      | Filtrar por categoria                                             |
+| `semantic`    | boolean | false  | Busca semântica por significado em vez de substring do título     |
 
-**Resposta (200):** Mesmo formato da listagem de vídeos.
+**Busca clássica** (`semantic=false`): encontra vídeos cujo título contenha o texto.
 
-> A busca registra automaticamente uma interação do tipo `SEARCH` quando o parâmetro `q` é informado.
+**Busca semântica** (`semantic=true`): usa embeddings de linguagem para encontrar
+vídeos semanticamente relacionados à consulta, mesmo que o título não contenha
+as palavras exatas.
+
+```
+GET /videos/search?q=heroi+viajando+no+tempo&semantic=true
+```
+
+> A busca semântica requer que os embeddings tenham sido indexados pelo admin
+> (`POST /admin/index-embeddings` no serviço IA). Se indisponível, cai
+> automaticamente na busca clássica.
+
+> Toda busca com `q` registra uma interação `SEARCH` usada pelo sistema de recomendação.
+
+**Resposta (200):** mesmo formato da listagem de vídeos.
+
+---
 
 ### Assistir Vídeo
 
@@ -177,59 +204,43 @@ GET /videos/search?q=python&genre_id=uuid&category_id=uuid&page=1&page_size=20
 GET /videos/{video_id}/watch
 ```
 
-**Resposta (200):**
-```json
-{
-  "id": "uuid",
-  "title": "Introdução ao Python",
-  "description": "Aula introdutória sobre Python",
-  "url": "https://cdn.example.com/video1.mp4",
-  "duration_seconds": 3600,
-  "release_date": "2025-06-15",
-  "age_rating": "L",
-  "genres": [{"id": "uuid", "name": "Educação"}],
-  "categories": [{"id": "uuid", "name": "Programação"}],
-  "created_at": "2025-01-01T00:00:00",
-  "updated_at": "2025-01-01T00:00:00"
-}
+**Resposta (200):** objeto do vídeo.
+
+> Cria automaticamente uma sessão de visualização e registra uma interação `CLICK`.
+> Guarde o ID da sessão retornado para enviar atualizações de progresso.
+
+---
+
+### Streaming do Vídeo (MP4)
+
+```
+GET /videos/{video_id}/stream
 ```
 
-> Este endpoint cria automaticamente uma sessão de visualização e registra uma interação do tipo `CLICK`.
+Serve o arquivo de vídeo com suporte a **HTTP Range** — compatível com a tag
+`<video>` do HTML e players nativos.
+
+```html
+<video controls>
+  <source src="http://localhost:8001/videos/{video_id}/stream" type="video/mp4">
+</video>
+```
+
+Ou para retomar de um ponto específico:
+
+```
+GET /videos/{video_id}/stream
+Range: bytes=1048576-
+```
+
+> Este endpoint não exige autenticação para compatibilidade com players de vídeo
+> que não enviam o header `Authorization`.
 
 ---
 
 ## Sessões de Visualização
 
-### Histórico de Visualização
-
-```
-GET /watch-history?page=1&page_size=20
-```
-
-**Resposta (200):**
-```json
-{
-  "items": [
-    {
-      "id": "uuid",
-      "user_id": "uuid",
-      "video_id": "uuid",
-      "started_at": "2025-01-01T12:00:00",
-      "watch_time_seconds": 1200,
-      "percentage_watched": 33.3,
-      "completed": false,
-      "abandoned": false,
-      "updated_at": "2025-01-01T12:20:00"
-    }
-  ],
-  "total": 25,
-  "page": 1,
-  "page_size": 20,
-  "total_pages": 2
-}
-```
-
-### Atualizar Progresso de Visualização
+### Atualizar Progresso
 
 ```
 PATCH /watch-sessions/{session_id}
@@ -257,13 +268,54 @@ PATCH /watch-sessions/{session_id}
 }
 ```
 
-> Envie atualizações periódicas do tempo assistido para manter o progresso do usuário sincronizado. Uma interação do tipo `WATCH` é registrada automaticamente.
+> Envie atualizações periódicas (ex: a cada 30s) para manter o progresso sincronizado.
+> Registra uma interação `WATCH` e **invalida o cache de recomendações** do usuário
+> — a próxima chamada a `GET /recommendations` recalcula com os dados mais recentes.
+
+**Campos calculados automaticamente:**
+
+| Campo | Cálculo |
+|---|---|
+| `percentage_watched` | `watch_time / duration_seconds` |
+| `completed` | `percentage_watched >= 0.9` |
+| `abandoned` | `percentage_watched < 0.1` |
+
+---
+
+### Histórico de Visualização
+
+```
+GET /watch-history?page=1&page_size=20
+```
+
+**Resposta (200):**
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "video_id": "uuid",
+      "started_at": "2025-01-01T12:00:00",
+      "watch_time_seconds": 9720,
+      "percentage_watched": 100.0,
+      "completed": true,
+      "abandoned": false,
+      "updated_at": "2025-01-01T14:42:00"
+    }
+  ],
+  "total": 25,
+  "page": 1,
+  "page_size": 20,
+  "total_pages": 2
+}
+```
 
 ---
 
 ## Favoritos
 
-### Adicionar Favorito
+### Adicionar
 
 ```
 POST /favorites/{video_id}
@@ -279,7 +331,7 @@ POST /favorites/{video_id}
 }
 ```
 
-### Remover Favorito
+### Remover
 
 ```
 DELETE /favorites/{video_id}
@@ -287,35 +339,17 @@ DELETE /favorites/{video_id}
 
 **Resposta:** `204 No Content`
 
-### Listar Favoritos
+### Listar
 
 ```
 GET /favorites?page=1&page_size=20
 ```
 
-**Resposta (200):**
-```json
-{
-  "items": [
-    {
-      "id": "uuid",
-      "user_id": "uuid",
-      "video_id": "uuid",
-      "created_at": "2025-01-01T00:00:00"
-    }
-  ],
-  "total": 10,
-  "page": 1,
-  "page_size": 20,
-  "total_pages": 1
-}
-```
+**Resposta (200):** lista paginada de favoritos.
 
 ---
 
-## Recomendações
-
-### Obter Recomendações Personalizadas
+## Recomendações Personalizadas
 
 ```
 GET /recommendations
@@ -328,18 +362,67 @@ GET /recommendations
     "id": "uuid",
     "user_id": "uuid",
     "video_id": "uuid",
-    "relevance_score": 0.95,
-    "explanation": "Baseado no seu histórico de visualização de vídeos de Programação",
+    "relevance_score": 0.94,
+    "explanation": "Recommended based on: genre affinity (Ficção Científica), popularity.",
     "created_at": "2025-01-01T00:00:00"
   }
 ]
 ```
 
-> As recomendações são geradas com base no histórico de interações do usuário (visualizações, buscas, favoritos).
+**Como funciona (transparente ao app):**
+
+1. **Cache Redis** — se as recomendações foram geradas nos últimos 5 minutos,
+   retorna do banco instantaneamente sem reprocessar.
+2. **IA (VodRec-Transformer)** — se o usuário tem 5 ou mais vídeos assistidos,
+   usa o modelo de recomendação sequencial treinado.
+3. **Fallback clássico** — scoring por afinidade de gênero, categoria,
+   popularidade e histórico de busca. Sempre disponível, mesmo com IA offline.
+
+O cache é invalidado automaticamente ao atualizar uma sessão de visualização.
 
 ---
 
-## Gêneros e Categorias (Consulta)
+## Chat com Assistente (VodChat)
+
+```
+POST /chat
+```
+
+**Body:**
+```json
+{
+  "message": "Quais filmes de ação você me recomenda com heróis?"
+}
+```
+
+**Resposta (200):**
+```json
+{
+  "reply": "Com base no seu histórico, você pode gostar de 'Mad Max: Estrada da Fúria' e 'John Wick'. Ambos têm heróis de ação intensos com ótima cinematografia.",
+  "fallback": false
+}
+```
+
+**Resposta quando IA está indisponível:**
+```json
+{
+  "reply": "Desculpe, o assistente está temporariamente indisponível. Tente novamente em instantes.",
+  "fallback": true
+}
+```
+
+> O VodChat conhece o catálogo completo e o histórico de visualização do usuário.
+> Use `fallback: true` para exibir uma mensagem de indisponibilidade no app.
+
+**Boas práticas:**
+- Verifique `fallback: true` antes de exibir a resposta
+- Limite mensagens a 2000 caracteres
+- O histórico de conversa **não é mantido entre chamadas** — cada `POST /chat`
+  é stateless; inclua contexto na mensagem se necessário
+
+---
+
+## Gêneros e Categorias
 
 ### Listar Gêneros
 
@@ -351,12 +434,7 @@ GET /genres?page=1&page_size=20
 ```json
 {
   "items": [
-    {
-      "id": "uuid",
-      "name": "Ação",
-      "created_at": "2025-01-01T00:00:00",
-      "updated_at": "2025-01-01T00:00:00"
-    }
+    {"id": "uuid", "name": "Ação", "created_at": "...", "updated_at": "..."}
   ],
   "total": 15,
   "page": 1,
@@ -371,27 +449,11 @@ GET /genres?page=1&page_size=20
 GET /categories?page=1&page_size=20
 ```
 
-**Resposta (200):**
-```json
-{
-  "items": [
-    {
-      "id": "uuid",
-      "name": "Programação",
-      "created_at": "2025-01-01T00:00:00",
-      "updated_at": "2025-01-01T00:00:00"
-    }
-  ],
-  "total": 8,
-  "page": 1,
-  "page_size": 20,
-  "total_pages": 1
-}
-```
+**Resposta (200):** mesmo formato de gêneros.
 
 ---
 
-## Planos (Consulta)
+## Planos
 
 ### Listar Planos Disponíveis
 
@@ -406,10 +468,10 @@ GET /plans?page=1&page_size=20
     {
       "id": "uuid",
       "name": "Premium",
-      "description": "Acesso completo com qualidade 4K e múltiplas telas",
+      "description": "Acesso completo com qualidade 4K",
       "price": 49.90,
-      "created_at": "2025-01-01T00:00:00",
-      "updated_at": "2025-01-01T00:00:00"
+      "created_at": "...",
+      "updated_at": "..."
     }
   ],
   "total": 3,
@@ -419,46 +481,53 @@ GET /plans?page=1&page_size=20
 }
 ```
 
-> Use a listagem de planos para exibir as opções disponíveis na tela de registro.
+> Use esta listagem na tela de cadastro para o usuário escolher um plano.
 
 ---
 
 ## Fluxo Típico de Uso
 
 ```
-1. GET /plans              → Listar planos disponíveis
-2. POST /auth/register     → Criar conta com plano escolhido
-3. POST /auth/login        → Obter tokens
-4. GET /videos             → Navegar catálogo
-5. GET /videos/search?q=   → Buscar vídeos
-6. GET /videos/{id}/watch  → Iniciar visualização
-7. PATCH /watch-sessions/{id} → Atualizar progresso
-8. POST /favorites/{id}    → Favoritar vídeo
-9. GET /recommendations    → Ver recomendações
-10. GET /watch-history     → Consultar histórico
+1.  GET  /plans                          → listar planos
+2.  POST /auth/register                  → criar conta
+3.  POST /auth/login                     → obter tokens
+4.  GET  /videos                         → navegar catálogo
+5.  GET  /videos/search?q=...            → busca clássica
+6.  GET  /videos/search?q=...&semantic=true → busca semântica
+7.  GET  /videos/{id}/watch              → iniciar sessão (guarda session_id)
+8.  GET  /videos/{id}/stream             → reproduzir vídeo (tag <video>)
+9.  PATCH /watch-sessions/{session_id}   → atualizar progresso (a cada 30s)
+10. POST /favorites/{video_id}           → favoritar
+11. GET  /recommendations                → recomendações personalizadas
+12. POST /chat                           → conversar com assistente
+13. GET  /watch-history                  → histórico do usuário
+14. POST /auth/refresh                   → renovar token quando expirar
 ```
-
----
-
-## Códigos de Erro Comuns
-
-| Código | Significado                        |
-|--------|------------------------------------|
-| 401    | Token inválido ou expirado         |
-| 404    | Recurso não encontrado             |
-| 409    | Conflito (ex: email já cadastrado) |
-| 422    | Dados de entrada inválidos         |
-| 500    | Erro interno do servidor           |
 
 ---
 
 ## Paginação
 
-Todos os endpoints de listagem suportam paginação:
+Todos os endpoints de listagem suportam:
 
 | Parâmetro   | Padrão | Mínimo | Máximo |
 |-------------|--------|--------|--------|
 | `page`      | 1      | 1      | —      |
 | `page_size` | 20     | 1      | 100    |
 
-A resposta paginada sempre inclui: `items`, `total`, `page`, `page_size`, `total_pages`.
+A resposta sempre inclui: `items`, `total`, `page`, `page_size`, `total_pages`.
+
+---
+
+## Códigos de Erro
+
+| Código | Significado |
+|--------|-------------|
+| 400 | Requisição malformada |
+| 401 | Token inválido ou expirado |
+| 403 | Permissão insuficiente |
+| 404 | Recurso não encontrado |
+| 409 | Conflito (ex: email já cadastrado) |
+| 416 | Range inválido (streaming) |
+| 422 | Dados de entrada inválidos |
+| 500 | Erro interno do servidor |

@@ -1,7 +1,7 @@
 from typing import Optional, List, Tuple
 from uuid import UUID
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -114,6 +114,45 @@ class VideoRepository:
     async def delete(self, db: AsyncSession, video: Video) -> None:
         await db.delete(video)
         await db.flush()
+
+    async def search_by_embedding(
+        self,
+        db: AsyncSession,
+        embedding: List[float],
+        page: int,
+        page_size: int,
+    ) -> Tuple[List[Video], int]:
+        """Busca semantica usando pgvector (<=> cosine distance).
+
+        Requer extensao `vector` instalada no Postgres e coluna
+        `description_embedding vector(384)` preenchida via /admin/index-embeddings.
+        """
+        vec_str = "[" + ",".join(str(v) for v in embedding) + "]"
+        offset = (page - 1) * page_size
+
+        count_result = await db.execute(
+            text("SELECT COUNT(*) FROM videos WHERE description_embedding IS NOT NULL")
+        )
+        total = count_result.scalar() or 0
+
+        id_result = await db.execute(
+            text("""
+                SELECT id FROM videos
+                WHERE description_embedding IS NOT NULL
+                ORDER BY description_embedding <=> CAST(:vec AS vector)
+                LIMIT :lim OFFSET :off
+            """),
+            {"vec": vec_str, "lim": page_size, "off": offset},
+        )
+        ids = [row[0] for row in id_result.all()]
+        if not ids:
+            return [], total
+
+        videos_result = await db.execute(self._base_query().where(Video.id.in_(ids)))
+        videos_map = {v.id: v for v in videos_result.scalars().unique().all()}
+        # preserva ordem de similaridade
+        videos = [videos_map[vid] for vid in ids if vid in videos_map]
+        return videos, total
 
     async def get_popular_videos(
         self, db: AsyncSession, limit: int = 10, exclude_video_ids: List[UUID] = None

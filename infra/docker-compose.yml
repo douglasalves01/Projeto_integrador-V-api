@@ -11,7 +11,7 @@
 
 services:
   db:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: vod_db
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
@@ -50,8 +50,12 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-streaming_db}
       SECRET_KEY: ${SECRET_KEY:-change-me}
+      REDIS_URL: redis://redis:6379/0
+      RECS_CACHE_TTL: "300"
       AI_SERVICE_URL: http://ai:8000/api/v1
+      AI_SERVICE_API_KEY: ${AI_API_KEY:-change-me-ai-api-key}
       AI_ENABLED: "true"
+      SEMANTIC_SEARCH_ENABLED: "true"
       VIDEO_STORAGE_DIR: /app/videos_storage
       CATALOG_PARQUET: /app/ai_data/contents.parquet
     ports:
@@ -64,6 +68,8 @@ services:
       - ${VIDEO_STORAGE_HOST_DIR:-../apps/api/videos_storage}:/app/videos_storage:ro
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - vod_net
@@ -85,8 +91,8 @@ services:
       VODREC_MODEL_PATH: /app/models/vodrec/model.pt
       VODREC_VOCAB_PATH: /app/models/vodrec/vocab.json
       VODCHAT_ADAPTER_PATH: /app/models/vodchat/vodchat-lora-final
-      LLM_ENABLED: "true"
-      VODCHAT_ENABLED: "true"  # LLM textual ligado — baixa TinyLlama (~2GB) na 1a vez
+      LLM_ENABLED: "${LLM_ENABLED:-true}"
+      VODCHAT_ENABLED: "${VODCHAT_ENABLED:-false}"  # false por padrão — habilitar só com GPU/RAM suficiente
     ports:
       - "8002:8000"
     volumes:

@@ -37,7 +37,7 @@ class VodChat:
         base_model_id: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
         gguf_path: str | Path | None = None,
         backend: Literal["transformers", "llamacpp", "auto"] = "auto",
-        max_new_tokens: int = 200,
+        max_new_tokens: int = 40,
         temperature: float = 0.7,
         device: str | None = None,
         known_titles: list[str] | None = None,
@@ -91,7 +91,7 @@ class VodChat:
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         device = self.device or ("cuda" if torch.cuda.is_available() else "cpu")
-        dtype = torch.bfloat16 if device == "cuda" else torch.float32
+        dtype = torch.bfloat16 if device == "cuda" else torch.float16
 
         tokenizer = AutoTokenizer.from_pretrained(self.base_model_id)
         if tokenizer.pad_token is None:

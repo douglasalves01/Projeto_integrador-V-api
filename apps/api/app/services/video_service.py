@@ -116,15 +116,37 @@ class VideoService:
 
     async def search_videos(
         self, db: AsyncSession, query: str = None, genre_id: UUID = None,
-        category_id: UUID = None, page: int = 1, page_size: int = 20
+        category_id: UUID = None, page: int = 1, page_size: int = 20,
+        semantic: bool = False,
     ) -> Tuple[List[Video], int]:
         if genre_id:
             return await self.video_repo.filter_by_genre(db, genre_id, page, page_size)
         if category_id:
             return await self.video_repo.filter_by_category(db, category_id, page, page_size)
+        if query and semantic:
+            return await self._search_semantic(db, query, page, page_size)
         if query:
             return await self.video_repo.search_by_title(db, query, page, page_size)
         return await self.video_repo.get_all_paginated(db, page, page_size)
+
+    async def _search_semantic(
+        self, db: AsyncSession, query: str, page: int, page_size: int
+    ) -> Tuple[List[Video], int]:
+        """Busca semantica via embedding — delega ao servico de IA para gerar o vetor."""
+        from app.core.config import settings
+        if not settings.SEMANTIC_SEARCH_ENABLED:
+            return await self.video_repo.search_by_title(db, query, page, page_size)
+        try:
+            from app.integrations.ai_client import get_ai_client
+            ai = get_ai_client()
+            if ai is not None and ai.available:
+                embedding = await ai.encode(query)
+                if embedding:
+                    return await self.video_repo.search_by_embedding(db, embedding, page, page_size)
+        except Exception:
+            pass
+        # Fallback para busca classica se IA indisponivel
+        return await self.video_repo.search_by_title(db, query, page, page_size)
 
     async def get_video_for_watch(self, db: AsyncSession, video_id: UUID) -> Video:
         video = await self.video_repo.get_by_id(db, video_id)

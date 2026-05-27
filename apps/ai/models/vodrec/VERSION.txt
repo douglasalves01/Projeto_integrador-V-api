@@ -1,1 +1,1 @@
-vodrec-real-v1.0.0
+vodrec-v1.0.0

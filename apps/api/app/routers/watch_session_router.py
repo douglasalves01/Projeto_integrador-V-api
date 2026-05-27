@@ -53,4 +53,8 @@ async def update_watch_session(
         metadata={"watch_time_seconds": data.watch_time_seconds},
     )
 
+    # Invalida cache de recomendacoes — novo dado de assistencia pode alterar ranking
+    from app.core.cache import invalidate_recommendations
+    await invalidate_recommendations(str(user_id))
+
     return session

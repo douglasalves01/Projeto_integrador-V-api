@@ -46,7 +46,19 @@ class RecommendationService:
         user_id: UUID,
         jwt: str | None = None,
     ) -> List[Recommendation]:
-        """Tenta IA (LLM) primeiro; se indisponivel ou off, faz fallback no scoring classico."""
+        """Tenta IA (LLM) primeiro; se indisponivel ou off, faz fallback no scoring classico.
+
+        Cache Redis (TTL=RECS_CACHE_TTL): quando flag existe, retorna do DB sem recomputar.
+        """
+        from app.core.cache import is_recommendations_fresh, mark_recommendations_fresh
+
+        # 0) Cache hit: recomendacoes ja estao frescas no banco
+        if await is_recommendations_fresh(str(user_id)):
+            cached_recs = await self.recommendation_repo.get_user_recommendations(db, user_id)
+            if cached_recs:
+                logger.debug("Recommendations served from cache (user=%s)", user_id)
+                return cached_recs
+
         # 1) Tenta o servico de IA (apps/ai) — se houver JWT e cliente disponivel
         if jwt:
             try:
@@ -58,6 +70,7 @@ class RecommendationService:
                         recs = await self._materialize_ai_recommendations(db, user_id, payload)
                         if recs:
                             logger.info("Recommendations served by AI (%s)", payload.get("model_version"))
+                            await mark_recommendations_fresh(str(user_id))
                             return recs
             except Exception as exc:  # IA nunca pode derrubar a API
                 logger.warning("AI fallback triggered: %s", exc)
@@ -67,8 +80,12 @@ class RecommendationService:
         completed_ids = await self.session_repo.get_completed_video_ids_for_user(db, user_id)
 
         if interaction_count < MIN_INTERACTIONS_FOR_PERSONALIZED:
-            return await self._popularity_based_recommendations(db, user_id, completed_ids)
-        return await self._personalized_recommendations(db, user_id, completed_ids)
+            recs = await self._popularity_based_recommendations(db, user_id, completed_ids)
+        else:
+            recs = await self._personalized_recommendations(db, user_id, completed_ids)
+
+        await mark_recommendations_fresh(str(user_id))
+        return recs
 
     async def _materialize_ai_recommendations(
         self,
@@ -147,17 +164,15 @@ class RecommendationService:
         # Get user interactions
         interactions = await self.interaction_repo.get_user_interactions(db, user_id)
 
-        # Get user watch sessions
+        # Get user watch sessions (necessario para completion/abandonment rates)
         result = await db.execute(
             select(WatchSession).where(WatchSession.user_id == user_id)
         )
         watch_sessions = list(result.scalars().all())
 
-        # Compute genre scores
-        genre_scores = await self._compute_genre_affinity(db, watch_sessions)
-
-        # Compute category scores
-        category_scores = await self._compute_category_affinity(db, watch_sessions)
+        # Compute genre/category scores via batch queries (sem N+1)
+        genre_scores = await self._compute_genre_affinity(db, user_id)
+        category_scores = await self._compute_category_affinity(db, user_id)
 
         # Compute completion rates per genre/category
         completion_rates = self._compute_completion_rates(watch_sessions)
@@ -218,60 +233,42 @@ class RecommendationService:
         return recommendations
 
     async def _compute_genre_affinity(
-        self, db: AsyncSession, watch_sessions: List[WatchSession]
+        self, db: AsyncSession, user_id: UUID
     ) -> Dict[UUID, float]:
-        """Proportion of watch time per genre."""
-        genre_watch_time: Dict[UUID, int] = defaultdict(int)
-        total_watch_time = 0
-
-        for session in watch_sessions:
-            if session.watch_time_seconds > 0:
-                # Get genres for this video
-                result = await db.execute(
-                    select(video_genre.c.genre_id).where(
-                        video_genre.c.video_id == session.video_id
-                    )
-                )
-                genre_ids = [row[0] for row in result.all()]
-                for gid in genre_ids:
-                    genre_watch_time[gid] += session.watch_time_seconds
-                total_watch_time += session.watch_time_seconds
-
-        if total_watch_time == 0:
+        """Proporcao de watch time por genero — query batch unica (sem N+1)."""
+        result = await db.execute(
+            select(
+                video_genre.c.genre_id,
+                func.sum(WatchSession.watch_time_seconds).label("wt"),
+            )
+            .join(WatchSession, WatchSession.video_id == video_genre.c.video_id)
+            .where(WatchSession.user_id == user_id, WatchSession.watch_time_seconds > 0)
+            .group_by(video_genre.c.genre_id)
+        )
+        rows = result.all()
+        if not rows:
             return {}
-
-        return {gid: wt / total_watch_time for gid, wt in genre_watch_time.items()}
+        total = sum(row.wt for row in rows)
+        return {row.genre_id: row.wt / total for row in rows} if total else {}
 
     async def _compute_category_affinity(
-        self, db: AsyncSession, watch_sessions: List[WatchSession]
+        self, db: AsyncSession, user_id: UUID
     ) -> Dict[UUID, float]:
-        """Average watch time per category."""
-        category_watch_time: Dict[UUID, List[int]] = defaultdict(list)
-
-        for session in watch_sessions:
-            if session.watch_time_seconds > 0:
-                result = await db.execute(
-                    select(video_category.c.category_id).where(
-                        video_category.c.video_id == session.video_id
-                    )
-                )
-                cat_ids = [row[0] for row in result.all()]
-                for cid in cat_ids:
-                    category_watch_time[cid].append(session.watch_time_seconds)
-
-        if not category_watch_time:
-            return {}
-
-        max_avg = max(
-            sum(times) / len(times) for times in category_watch_time.values()
+        """Afinidade por categoria via media de watch time — query batch unica (sem N+1)."""
+        result = await db.execute(
+            select(
+                video_category.c.category_id,
+                func.avg(WatchSession.watch_time_seconds).label("avg_wt"),
+            )
+            .join(WatchSession, WatchSession.video_id == video_category.c.video_id)
+            .where(WatchSession.user_id == user_id, WatchSession.watch_time_seconds > 0)
+            .group_by(video_category.c.category_id)
         )
-        if max_avg == 0:
+        rows = result.all()
+        if not rows:
             return {}
-
-        return {
-            cid: (sum(times) / len(times)) / max_avg
-            for cid, times in category_watch_time.items()
-        }
+        max_avg = max(row.avg_wt for row in rows)
+        return {row.category_id: row.avg_wt / max_avg for row in rows} if max_avg else {}
 
     def _compute_completion_rates(self, watch_sessions: List[WatchSession]) -> Dict[UUID, float]:
         """Completion rate per video_id."""

@@ -30,10 +30,15 @@ class Settings(BaseSettings):
     APP_NAME: str = "Streaming Recommendation API"
     DEBUG: bool = False
 
+    # Cache Redis
+    REDIS_URL: str = "redis://localhost:6379/0"
+    RECS_CACHE_TTL: int = 300  # 5 minutos
+
     # Integracao com o servico de IA (apps/ai do monorepo)
     AI_SERVICE_URL: str = "http://ai:8000/api/v1"
     AI_SERVICE_API_KEY: str = ""
     AI_ENABLED: bool = True
+    SEMANTIC_SEARCH_ENABLED: bool = True
 
     model_config = SettingsConfigDict(
         env_file=_env_files(),

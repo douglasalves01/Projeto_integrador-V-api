@@ -1,89 +1,203 @@
 # Plataforma VOD — Monorepo
 
-Monorepo do Projeto Integrador V (PUC-Campinas) com 3 aplicacoes que
+Monorepo do Projeto Integrador V (PUC-Campinas) com três aplicações que
 compartilham o mesmo Postgres:
 
 ```
 .
 ├── apps/
-│   ├── api/         FastAPI + Postgres async (auth, usuarios, videos, recs)
-│   ├── ai/          FastAPI + PyTorch — VodRec-Transformer e VodChat
-│   └── analytics/   Jobs SQL/pandas (top videos, retention, efetividade das recs)
+│   ├── api/         FastAPI async — auth, catálogo, streaming, recomendações, chat
+│   ├── ai/          FastAPI + PyTorch — VodRec-Transformer, VodChat, embeddings
+│   └── analytics/   Jobs SQL/pandas — top vídeos, retenção, efetividade das recs
 ├── packages/
 │   └── shared/      Schemas Pydantic compartilhados (vod_shared)
 ├── infra/
 │   ├── docker-compose.yml
-│   ├── api.Dockerfile
+│   ├── api.Dockerfile          ← roda migrations automaticamente no boot
 │   ├── ai.Dockerfile
-│   └── analytics.Dockerfile
+│   ├── analytics.Dockerfile
+│   └── entrypoint-api.sh       ← alembic upgrade head → uvicorn
 ├── docs/
+│   ├── INTEGRACAO_USUARIO.md
+│   └── INTEGRACAO_ADMIN.md
 ├── Makefile
 └── .env.example
 ```
 
-## Como sobe
+---
+
+## Início rápido
 
 ```bash
 cp .env.example .env
-make install            # instala deps de todos os apps
-make db.migrate         # alembic da API
-make compose.up         # sobe db + api + ai
+make setup          # sobe containers + seeds (~3-5 min, migrations automáticas)
 ```
 
-API em <http://localhost:8001>. IA em <http://localhost:8002>.
+Pronto. Não há passo manual de migration.
 
-## Fluxo de uma recomendacao
+| Serviço | URL local |
+|---|---|
+| API (Swagger) | http://localhost:8001/docs |
+| IA (info) | http://localhost:8002/api/v1/llm/info |
+| Postgres | localhost:5432 |
+| Redis | localhost:6379 |
+
+**Credenciais de demo:**
+
+| Perfil | Email | Senha |
+|---|---|---|
+| Admin | admin@streaming.com | admin123 |
+| Usuário | demo@streaming.com | demo1234 |
+
+---
+
+## Arquitetura
 
 ```
-Cliente → GET /recommendations         (API, port 8001)
-            ↓
-         RecommendationService
-            ↓
-         AIClient (com circuit breaker)
-            ↓
-         GET /llm/recommendations/{user_id}   (IA, port 8002)
-            ↓
-         VodRec-Transformer + (opcional) VodChat
-            ↓
-         Postgres ← le watch_sessions
-            ↓
-         resposta JSON com top-K
+                        ┌─────────────────────────────────┐
+                        │            API (8001)            │
+                        │  FastAPI async + SQLAlchemy      │
+                        │                                  │
+  Cliente ──────────────►  Auth · Vídeos · Favoritos      │
+                        │  Recomendações · Chat · Busca    │
+                        │                                  │
+                        │  Cache Redis ◄──────────────┐   │
+                        └──────────┬──────────────────┼───┘
+                                   │ HTTP              │
+                        ┌──────────▼──────────────┐   │
+                        │      IA (8002)           │   │
+                        │  FastAPI + PyTorch       │   │
+                        │                          │   │
+                        │  VodRec-Transformer      ├───┘
+                        │  VodChat (TinyLlama LoRA)│
+                        │  Embeddings semânticos   │
+                        └──────────┬───────────────┘
+                                   │
+                        ┌──────────▼───────────────┐
+                        │   Postgres 16 (único)    │
+                        │   Redis 7                │
+                        └──────────────────────────┘
 ```
 
-Se a IA falhar / timeout / circuito aberto, a API cai no algoritmo
-classico (genero/categoria/popularidade) — usuario nao percebe.
+### Fluxo de recomendação
+
+```
+GET /recommendations
+  └── RecommendationService
+        ├── [1] Redis cache hit? → retorna do banco sem recomputar (TTL 5 min)
+        ├── [2] IA disponível? → AIClient → /llm/recommendations/{id}
+        │         └── VodRec-Transformer → top-K (≥5 views) ou popularidade
+        └── [3] Fallback clássico → scoring gênero/categoria/popularidade
+```
+
+### Fluxo de busca semântica
+
+```
+GET /videos/search?q=heroi+no+espaço&semantic=true
+  └── VideoService._search_semantic()
+        ├── AIClient.encode(q) → POST /embeddings/encode → vetor 384-dim
+        └── VideoRepository.search_by_embedding() → pgvector <=> cosine
+```
+
+### Fluxo do chat
+
+```
+POST /chat  {"message": "..."}
+  └── ChatRouter
+        └── AIClient.chat() → POST /llm/chat/{user_id}
+              └── VodChat (TinyLlama + LoRA) com histórico do usuário
+```
+
+---
+
+## Funcionalidades de IA
+
+| Feature | Onde mora | Como ativar |
+|---|---|---|
+| Recomendação VodRec | apps/ai | automático (≥5 views) |
+| Recomendação clássica | apps/api | fallback sempre ativo |
+| Cache de recomendações | Redis (API) | automático, TTL 5 min |
+| Chat contextual (VodChat) | apps/ai | `VODCHAT_ENABLED=true` |
+| Busca semântica | pgvector + apps/ai | indexar + `?semantic=true` |
+| Explicação de recomendação | apps/ai | `with_explanation=true` |
+
+### Ativar busca semântica
+
+```bash
+# 1. Rodar migration (cria extensão pgvector + coluna)
+make db.migrate
+
+# 2. Indexar vídeos (gera embeddings e salva no Postgres)
+curl -X POST http://localhost:8002/api/v1/admin/index-embeddings \
+  -H "X-AI-API-Key: $AI_API_KEY"
+
+# 3. Buscar
+GET /videos/search?q=aventura+no+espaço&semantic=true
+```
+
+---
 
 ## Stack
 
-| Camada | Tecnologia | Por que |
+| Camada | Tecnologia | Detalhe |
 |---|---|---|
-| Banco unico | Postgres 16 (asyncpg na API, psycopg3 na IA) | Sem duplicacao de dados; um schema, um alembic |
-| Cache | Redis 7 | Cache de inferencias da IA |
-| API | FastAPI + SQLAlchemy 2 async + Alembic | Padrao moderno |
-| IA | FastAPI + PyTorch puro | VodRec-Transformer treinado do zero |
-| Analytics | pandas + SQL via psycopg3 | Jobs CLI, gera CSV |
-| Contratos | pydantic via `vod_shared` | Evita drift entre apps |
+| Banco | Postgres 16 | único banco — asyncpg na API, psycopg3 na IA |
+| Busca semântica | pgvector | extensão Postgres, índice IVFFlat cosine |
+| Cache | Redis 7 | recomendações (API) + inferências (IA) |
+| API | FastAPI + SQLAlchemy 2 async | Alembic roda no boot via entrypoint |
+| IA — recomendação | VodRec-Transformer (PyTorch puro) | decoder-only, treinado do zero |
+| IA — chat/explicação | VodChat (TinyLlama + LoRA / GGUF) | suporte a GPU e CPU quantizado |
+| IA — embeddings | sentence-transformers | `paraphrase-multilingual-MiniLM-L12-v2` (384 dims, suporta pt-BR) |
+| Analytics | pandas + SQL | jobs CLI, gera CSV |
+| Contratos | pydantic via `vod_shared` | evita drift entre apps |
 
-## Comandos uteis (Makefile)
+---
+
+## Variáveis de ambiente principais
+
+| Variável | Quem usa | Descrição |
+|---|---|---|
+| `DATABASE_URL` | API, IA | Postgres compartilhado |
+| `SECRET_KEY` | API | JWT — **deve ser igual a `JWT_SECRET` da IA** |
+| `JWT_SECRET` | IA | mesmo valor de `SECRET_KEY` |
+| `REDIS_URL` | API, IA | `redis://redis:6379/0` |
+| `AI_SERVICE_URL` | API | onde a API encontra a IA |
+| `AI_ENABLED` | API | desliga caminho LLM, usa só scoring clássico |
+| `SEMANTIC_SEARCH_ENABLED` | API | habilita `?semantic=true` na busca |
+| `VODCHAT_ENABLED` | IA | habilita VodChat (pesado em CPU sem GPU) |
+| `RECS_CACHE_TTL` | API | TTL do cache de recomendações em segundos (default 300) |
+
+Veja `.env.example` para a lista completa.
+
+---
+
+## Comandos úteis
 
 ```bash
-make api.run            # uvicorn da API
-make ai.run             # uvicorn da IA
-make ai.train           # treina VodRec
+make setup              # primeira vez: containers + migrations + seeds
+make compose.up         # sobe stack (migrations automáticas no boot)
+make compose.down       # derruba tudo
+make compose.logs       # tails dos logs
+make compose.analytics  # roda jobs analytics (oneshot)
+
+make api.run            # uvicorn da API localmente (porta 8001)
+make ai.run             # uvicorn da IA localmente (porta 8002)
+make ai.train           # treina VodRec-Transformer
 make ai.validate        # valida RFIA01-04
-make analytics.run      # roda todos os jobs analiticos
-make test               # roda todos os pytests
+
+make db.migrate         # aplica migrations manualmente (dev local)
+make db.revision NAME="descricao"  # nova migration
+
+make test               # toda a suite pytest
 make lint               # ruff em tudo
-make compose.up         # docker compose
-make compose.analytics  # roda jobs analytics dentro do compose
+make format             # ruff format
 ```
 
-## Variaveis de ambiente
+---
 
-Veja `.env.example`. As principais:
-- `DATABASE_URL` — Postgres compartilhado
-- `SECRET_KEY` / `JWT_SECRET` — **devem ser iguais** entre API e IA (a IA
-  valida os JWTs que a API emite)
-- `AI_SERVICE_URL` — onde a API encontra a IA (default `http://ai:8000`)
-- `AI_ENABLED` — desliga o caminho LLM e usa so o scoring classico
-- `VODCHAT_ENABLED` — liga/desliga o LLM textual (pesado em CPU)
+## Documentação de integração
+
+| Documento | Para quem |
+|---|---|
+| [docs/INTEGRACAO_USUARIO.md](docs/INTEGRACAO_USUARIO.md) | App do usuário final |
+| [docs/INTEGRACAO_ADMIN.md](docs/INTEGRACAO_ADMIN.md) | Painel administrativo |

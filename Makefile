@@ -2,6 +2,8 @@
         test test.api test.ai lint format db.migrate db.revision \
         compose.up compose.down compose.logs compose.analytics
 
+COMPOSE = docker compose -f infra/docker-compose.yml --env-file .env
+
 help:           ## Lista os targets
 	@grep -E '^[a-zA-Z_.-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
 
@@ -60,33 +62,43 @@ db.revision:    ## Cria nova migration (NAME="texto")
 
 # -------- compose --------
 compose.up:     ## Sobe a stack (db + api + ai)
-	docker compose -f infra/docker-compose.yml up --build -d
+	$(COMPOSE) up --build -d
 
 compose.down:   ## Derruba tudo
-	docker compose -f infra/docker-compose.yml down
+	$(COMPOSE) down
 
 compose.logs:   ## Tails dos logs
-	docker compose -f infra/docker-compose.yml logs -f
+	$(COMPOSE) logs -f
 
 compose.analytics:  ## Roda jobs de analytics (oneshot)
-	docker compose -f infra/docker-compose.yml --profile analytics run --rm analytics
+	$(COMPOSE) --profile analytics run --rm analytics
 
 # -------- setup pros colegas (one-shot) --------
 seed.all:       ## Roda todos os seeds (catalogo + demo user + URLs de stream)
-	docker compose -f infra/docker-compose.yml exec api python -m app.seeds.seed_data || true
-	docker compose -f infra/docker-compose.yml exec api python -m app.seeds.seed_real_catalog
-	docker compose -f infra/docker-compose.yml exec api python -m app.seeds.seed_demo_user
-	docker compose -f infra/docker-compose.yml exec api python -m app.seeds.update_video_urls_to_stream
+	$(COMPOSE) exec api python -m app.seeds.seed_data || true
+	$(COMPOSE) exec api python -m app.seeds.seed_real_catalog
+	$(COMPOSE) exec api python -m app.seeds.seed_demo_user
+	$(COMPOSE) exec api python -m app.seeds.update_video_urls_to_stream
 
-setup:          ## Setup completo pos-clone: compose up + migrate + seed (~3-5 min)
-	@echo "==> Subindo containers..."
+setup:          ## Setup completo pos-clone: compose up + seed + embeddings (~3-5 min)
+	@echo "==> Subindo containers (migrations rodam automaticamente no boot da API)..."
 	$(MAKE) compose.up
-	@echo "==> Aguardando Postgres..."
-	@until docker compose -f infra/docker-compose.yml exec -T db pg_isready -U postgres > /dev/null 2>&1; do sleep 1; done
-	@echo "==> Aplicando migrations..."
-	$(MAKE) db.migrate
+	@echo "==> Aguardando API ficar pronta..."
+	@until $(COMPOSE) exec -T api \
+		python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')" \
+		> /dev/null 2>&1; do sleep 2; done
+	@echo "==> Aguardando IA ficar pronta..."
+	@until curl -sf http://localhost:8002/api/v1/llm/info > /dev/null 2>&1; do sleep 2; done
 	@echo "==> Seedando dados..."
 	$(MAKE) seed.all
+	@echo "==> Indexando embeddings para busca semantica..."
+	@TOKEN=$$(curl -sf -X POST http://localhost:8001/auth/login \
+		-H "Content-Type: application/json" \
+		-d '{"email":"admin@streaming.com","password":"admin123"}' \
+		| python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])") && \
+	RESULT=$$(curl -sf -X POST http://localhost:8001/admin/index-embeddings \
+		-H "Authorization: Bearer $$TOKEN") && \
+	echo "  $$RESULT"
 	@echo ""
 	@echo "Tudo pronto!"
 	@echo "  API:       http://localhost:8001/docs"

@@ -52,13 +52,15 @@ async def search_videos(
     q: Optional[str] = Query(None),
     genre_id: Optional[UUID] = Query(None),
     category_id: Optional[UUID] = Query(None),
+    semantic: bool = Query(False, description="Busca semantica via embedding (requer pgvector e indexacao previa)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     videos, total = await video_service.search_videos(
-        db, query=q, genre_id=genre_id, category_id=category_id, page=page, page_size=page_size
+        db, query=q, genre_id=genre_id, category_id=category_id,
+        page=page, page_size=page_size, semantic=semantic,
     )
     total_pages = math.ceil(total / page_size) if total > 0 else 0
 
@@ -69,7 +71,11 @@ async def search_videos(
             user_id=UUID(current_user["user_id"]),
             interaction_type="SEARCH",
             search_query=q,
-            metadata={"genre_id": str(genre_id) if genre_id else None, "category_id": str(category_id) if category_id else None},
+            metadata={
+                "genre_id": str(genre_id) if genre_id else None,
+                "category_id": str(category_id) if category_id else None,
+                "semantic": semantic,
+            },
         )
 
     return PaginatedResponse(
