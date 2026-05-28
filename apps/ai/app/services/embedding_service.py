@@ -34,11 +34,27 @@ def encode_batch(texts: Sequence[str]) -> list[list[float]]:
     return _get_encoder().encode(list(texts), normalize_embeddings=True, show_progress_bar=False).tolist()
 
 
+def get_embedding_stats(db) -> dict[str, int]:
+    """Contagens do catálogo para diagnostico de index-embeddings."""
+    from sqlalchemy import text
+
+    total_videos = db.execute(text("SELECT COUNT(*) FROM videos")).scalar() or 0
+    total_with_embeddings = db.execute(
+        text("SELECT COUNT(*) FROM videos WHERE description_embedding IS NOT NULL")
+    ).scalar() or 0
+    pending = max(0, int(total_videos) - int(total_with_embeddings))
+    return {
+        "total_videos": int(total_videos),
+        "total_with_embeddings": int(total_with_embeddings),
+        "pending": pending,
+    }
+
+
 def index_videos_in_db(db) -> int:
     """Gera embeddings para todos os videos sem embedding e salva no Postgres.
 
     Usa a sessao sincrona (psycopg) padrao do servico IA.
-    Retorna o numero de videos indexados.
+    Retorna o numero de videos indexados nesta execucao (0 = nada pendente).
     """
     from sqlalchemy import text
 

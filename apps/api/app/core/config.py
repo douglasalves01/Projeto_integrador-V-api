@@ -40,6 +40,16 @@ class Settings(BaseSettings):
     AI_ENABLED: bool = True
     SEMANTIC_SEARCH_ENABLED: bool = True
 
+    # Chat — anexar sugestões de vídeo (busca semântica / textual)
+    CHAT_ATTACH_VIDEOS: bool = True
+    CHAT_VIDEO_SUGGESTIONS_LIMIT: int = 5
+    CHAT_VIDEO_CANDIDATE_LIMIT: int = 24
+    CHAT_SEMANTIC_MAX_DISTANCE: float = 0.58
+    CHAT_REQUIRE_TOPIC_KEYWORD_MATCH: bool = True
+    CHAT_SEMANTIC_SEARCH_ON_CHAT: bool = True
+    # Com videos[] preenchido, reply vem do catalogo (nao do VodChat alucinado).
+    CHAT_PREFER_CATALOG_REPLY: bool = True
+
     model_config = SettingsConfigDict(
         env_file=_env_files(),
         case_sensitive=True,

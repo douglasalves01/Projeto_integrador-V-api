@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from app.api.deps import verify_admin_api_key
 from app.core.database import SessionLocal
-from app.services.embedding_service import encode, index_videos_in_db
+from app.services.embedding_service import encode, get_embedding_stats, index_videos_in_db
 
 router = APIRouter()
 
@@ -23,6 +23,9 @@ class EncodeResponse(BaseModel):
 class IndexResponse(BaseModel):
     indexed: int
     status: str
+    total_videos: int = 0
+    total_with_embeddings: int = 0
+    pending: int = 0
 
 
 @router.get(
@@ -45,5 +48,14 @@ def encode_text(q: str = Query(..., min_length=1, max_length=2000)) -> EncodeRes
 )
 def index_embeddings() -> IndexResponse:
     with SessionLocal() as db:
+        stats = get_embedding_stats(db)
         indexed = index_videos_in_db(db)
-    return IndexResponse(indexed=indexed, status="ok")
+        if indexed == 0:
+            stats = get_embedding_stats(db)
+    return IndexResponse(
+        indexed=indexed,
+        status="ok",
+        total_videos=stats["total_videos"],
+        total_with_embeddings=stats["total_with_embeddings"],
+        pending=stats["pending"],
+    )

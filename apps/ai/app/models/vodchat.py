@@ -22,9 +22,12 @@ from pathlib import Path
 from typing import Literal, Sequence
 
 DEFAULT_SYSTEM_PROMPT = (
-    "Voce e o VodChat, um assistente especializado na plataforma de streaming VOD. "
-    "Ajuda usuarios a descobrir conteudo, explica recomendacoes e responde duvidas "
-    "sobre o catalogo. Seja conciso, claro e amigavel. Sempre responda em portugues."
+    "Voce e o VodChat, assistente da plataforma de streaming VOD. "
+    "Responda sempre em portugues do Brasil, de forma clara e amigavel. "
+    "Quando o usuario pedir sugestoes, cite titulos reais do catalogo que voce conhece "
+    "(entre aspas), em lista numerada se forem varios. "
+    "Nao invente filmes que nao existem no catalogo. "
+    "Nao responda em ingles nem faca meta-comentarios sobre o modelo ou o treinamento."
 )
 
 
@@ -37,7 +40,7 @@ class VodChat:
         base_model_id: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
         gguf_path: str | Path | None = None,
         backend: Literal["transformers", "llamacpp", "auto"] = "auto",
-        max_new_tokens: int = 40,
+        max_new_tokens: int = 160,
         temperature: float = 0.7,
         device: str | None = None,
         known_titles: list[str] | None = None,
@@ -162,16 +165,16 @@ class VodChat:
         history_titles: Sequence[str] | None = None,
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     ) -> str:
-        """Resposta conversacional. Opcionalmente recebe historico do usuario para contexto."""
+        """Resposta conversacional. Historico vai no system prompt (nao na mensagem do usuario)."""
         self.load()
-        ctx = ""
+        effective_system = system_prompt
         if history_titles:
-            ctx = (
-                f"Historico recente do usuario: "
-                f"{', '.join(f'{repr(t)}' for t in history_titles)}.\n\n"
+            titles_line = "; ".join(history_titles)
+            effective_system += (
+                f"\n\nContexto: o usuario ja assistiu recentemente a: {titles_line}. "
+                "Use isso apenas para personalizar a resposta a pergunta atual."
             )
-        prompt = ctx + user_message
-        return self._generate(prompt, system_prompt=system_prompt)
+        return self._generate(user_message.strip(), system_prompt=effective_system)
 
     # ------------------------------------------------------------------
     # Backend-specific generation

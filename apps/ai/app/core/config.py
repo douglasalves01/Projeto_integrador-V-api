@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     VODCHAT_ADAPTER_PATH: str = "models/vodchat/vodchat-lora-final"
     VODCHAT_BASE_MODEL: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
     VODCHAT_GGUF_PATH: str | None = None
+    VODCHAT_MAX_NEW_TOKENS: int = 160
     LLM_ENABLED: bool = True
     VODCHAT_ENABLED: bool = True
 

@@ -98,7 +98,13 @@ setup:          ## Setup completo pos-clone: compose up + seed + embeddings (~3-
 		| python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])") && \
 	RESULT=$$(curl -sf -X POST http://localhost:8001/admin/index-embeddings \
 		-H "Authorization: Bearer $$TOKEN") && \
-	echo "  $$RESULT"
+	echo "  $$RESULT" && \
+	INDEXED=$$(echo "$$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('indexed',0))") && \
+	if [ "$$INDEXED" = "0" ]; then \
+		echo "  AVISO: indexed=0 — rode novamente com IA ativa ou verifique pgvector."; \
+	else \
+		echo "  Embeddings OK ($$INDEXED videos)."; \
+	fi
 	@echo ""
 	@echo "Tudo pronto!"
 	@echo "  API:       http://localhost:8001/docs"

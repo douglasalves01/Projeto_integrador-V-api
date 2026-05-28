@@ -83,6 +83,11 @@ Log: `LLM models not loaded; classic recommender remains available`.
 - `VODCHAT_ENABLED=false` ou adapter ausente.
 - GPU/RAM insuficiente — usar `VODCHAT_GGUF_PATH` + llama-cpp.
 
+### Resposta do chat cortada ou em ingles
+
+- Ajuste `VODCHAT_MAX_NEW_TOKENS` (default **160**; reinicie o container `ai` apos mudar `.env`).
+- `POST /chat` com `videos[]` vazio: embeddings nao indexados — `POST /admin/index-embeddings` (admin JWT na API ou `X-AI-API-Key` na IA).
+
 ### Recomendações LLM vazias
 
 - Usuário sem histórico → esperado; backend deve usar fallback popularidade.

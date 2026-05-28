@@ -148,6 +148,47 @@ class VideoService:
         # Fallback para busca classica se IA indisponivel
         return await self.video_repo.search_by_title(db, query, page, page_size)
 
+    async def search_videos_semantic_scored(
+        self,
+        db: AsyncSession,
+        query: str,
+        *,
+        limit: int,
+        max_distance: float | None = None,
+    ) -> List[Tuple[Video, float]]:
+        """Busca semantica com score; usada pelo chat para filtrar relevancia."""
+        from app.core.config import settings
+
+        if not settings.SEMANTIC_SEARCH_ENABLED:
+            videos, _total = await self.video_repo.search_by_title(db, query, 1, limit)
+            return [(v, 0.0) for v in videos]
+
+        try:
+            from app.integrations.ai_client import get_ai_client
+
+            ai = get_ai_client()
+            if ai is not None and ai.available:
+                embedding = await ai.encode(query)
+                if embedding:
+                    return await self.video_repo.search_by_embedding_scored(
+                        db,
+                        embedding,
+                        limit=limit,
+                        max_distance=max_distance,
+                    )
+        except Exception:
+            pass
+        videos, _total = await self.video_repo.search_by_title(db, query, 1, limit)
+        return [(v, 0.0) for v in videos]
+
+    async def search_videos_by_topic_keywords(
+        self,
+        db: AsyncSession,
+        keywords: List[str],
+        limit: int,
+    ) -> List[Video]:
+        return await self.video_repo.search_by_topic_keywords(db, keywords, limit)
+
     async def get_video_for_watch(self, db: AsyncSession, video_id: UUID) -> Video:
         video = await self.video_repo.get_by_id(db, video_id)
         if not video:

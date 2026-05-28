@@ -1,7 +1,7 @@
 from typing import Optional, List, Tuple
 from uuid import UUID
 
-from sqlalchemy import select, func, text
+from sqlalchemy import or_, select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -59,6 +59,28 @@ class VideoRepository:
         )
         videos = list(result.scalars().unique().all())
         return videos, total
+
+    async def search_by_topic_keywords(
+        self,
+        db: AsyncSession,
+        keywords: List[str],
+        limit: int,
+    ) -> List[Video]:
+        """Busca textual em titulo ou descricao (qualquer palavra-chave do tema)."""
+        terms = [k.strip() for k in keywords if k and len(k.strip()) >= 3][:15]
+        if not terms:
+            return []
+
+        clauses = []
+        for term in terms:
+            pattern = f"%{term}%"
+            clauses.append(Video.title.ilike(pattern))
+            clauses.append(Video.description.ilike(pattern))
+
+        result = await db.execute(
+            self._base_query().where(or_(*clauses)).limit(limit)
+        )
+        return list(result.scalars().unique().all())
 
     async def filter_by_genre(
         self, db: AsyncSession, genre_id: UUID, page: int, page_size: int
@@ -121,38 +143,64 @@ class VideoRepository:
         embedding: List[float],
         page: int,
         page_size: int,
+        *,
+        max_distance: float | None = None,
+        candidate_limit: int | None = None,
     ) -> Tuple[List[Video], int]:
         """Busca semantica usando pgvector (<=> cosine distance).
 
         Requer extensao `vector` instalada no Postgres e coluna
         `description_embedding vector(384)` preenchida via /admin/index-embeddings.
         """
-        vec_str = "[" + ",".join(str(v) for v in embedding) + "]"
-        offset = (page - 1) * page_size
-
-        count_result = await db.execute(
-            text("SELECT COUNT(*) FROM videos WHERE description_embedding IS NOT NULL")
+        scored = await self.search_by_embedding_scored(
+            db,
+            embedding,
+            limit=candidate_limit or max(page_size, (page * page_size)),
+            max_distance=max_distance,
         )
-        total = count_result.scalar() or 0
+        total = len(scored)
+        offset = (page - 1) * page_size
+        page_items = scored[offset : offset + page_size]
+        return [video for video, _distance in page_items], total
+
+    async def search_by_embedding_scored(
+        self,
+        db: AsyncSession,
+        embedding: List[float],
+        *,
+        limit: int,
+        max_distance: float | None = None,
+    ) -> List[Tuple[Video, float]]:
+        """Retorna videos ordenados por similaridade com distancia coseno (menor = melhor)."""
+        vec_str = "[" + ",".join(str(v) for v in embedding) + "]"
 
         id_result = await db.execute(
             text("""
-                SELECT id FROM videos
+                SELECT id,
+                       (description_embedding <=> CAST(:vec AS vector)) AS distance
+                FROM videos
                 WHERE description_embedding IS NOT NULL
-                ORDER BY description_embedding <=> CAST(:vec AS vector)
-                LIMIT :lim OFFSET :off
+                ORDER BY distance
+                LIMIT :lim
             """),
-            {"vec": vec_str, "lim": page_size, "off": offset},
+            {"vec": vec_str, "lim": limit},
         )
-        ids = [row[0] for row in id_result.all()]
-        if not ids:
-            return [], total
+        rows = id_result.all()
+        if max_distance is not None:
+            rows = [row for row in rows if float(row[1]) <= max_distance]
+        if not rows:
+            return []
+
+        ids = [row[0] for row in rows]
+        distances = {row[0]: float(row[1]) for row in rows}
 
         videos_result = await db.execute(self._base_query().where(Video.id.in_(ids)))
         videos_map = {v.id: v for v in videos_result.scalars().unique().all()}
-        # preserva ordem de similaridade
-        videos = [videos_map[vid] for vid in ids if vid in videos_map]
-        return videos, total
+        return [
+            (videos_map[vid], distances[vid])
+            for vid in ids
+            if vid in videos_map
+        ]
 
     async def get_popular_videos(
         self, db: AsyncSession, limit: int = 10, exclude_video_ids: List[UUID] = None
