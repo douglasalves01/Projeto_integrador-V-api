@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Table
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -35,6 +35,7 @@ class VideoRO(PlatformBase):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String(200), nullable=False)
     description = Column(String(2000), nullable=True)
+    summary = Column(Text, nullable=True)
     duration_seconds = Column(Integer, nullable=False)
     release_date = Column(Date, nullable=True)
     created_at = Column(DateTime, nullable=False)

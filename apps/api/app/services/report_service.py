@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Tuple
 
 from fastapi import HTTPException, status
@@ -17,7 +17,19 @@ from app.schemas.report import (
     AbandonmentVideoReport,
     RankedGenreReport,
     RankedUserReport,
+    UserEngagementReport,
+    InsightsReport,
 )
+
+
+def _format_duration(seconds: float) -> str:
+    seconds = int(round(seconds))
+    minutes, secs = divmod(seconds, 60)
+    if minutes and secs:
+        return f"{minutes}min{secs:02d}s"
+    if minutes:
+        return f"{minutes}min"
+    return f"{secs}s"
 
 
 class ReportService:
@@ -208,3 +220,155 @@ class ReportService:
             RankedUserReport(user_id=row[0], name=row[1], email=row[2], interaction_count=row[3])
             for row in rows
         ]
+
+    async def get_user_engagement(
+        self, db: AsyncSession, limit: int = 10,
+        start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
+    ) -> List[UserEngagementReport]:
+        """Por usuario: sessoes, tempo total/medio assistido e retencao media."""
+        self._validate_date_range(start_date, end_date)
+
+        query = (
+            select(
+                User.id,
+                User.name,
+                User.email,
+                func.count(WatchSession.id).label("sessions"),
+                func.coalesce(func.sum(WatchSession.watch_time_seconds), 0).label("total_time"),
+                func.coalesce(func.avg(WatchSession.watch_time_seconds), 0.0).label("avg_time"),
+                func.coalesce(func.avg(WatchSession.percentage_watched), 0.0).label("avg_pct"),
+            )
+            .join(WatchSession, User.id == WatchSession.user_id)
+            .group_by(User.id, User.name, User.email)
+            .order_by(func.sum(WatchSession.watch_time_seconds).desc())
+            .limit(limit)
+        )
+
+        if start_date:
+            query = query.where(WatchSession.started_at >= start_date)
+        if end_date:
+            query = query.where(WatchSession.started_at <= end_date)
+
+        result = await db.execute(query)
+        rows = result.all()
+
+        return [
+            UserEngagementReport(
+                user_id=row[0],
+                name=row[1],
+                email=row[2],
+                sessions=row[3],
+                total_watch_time_seconds=int(row[4]),
+                average_watch_time_seconds=float(row[5]),
+                average_percentage_watched=float(row[6]),
+            )
+            for row in rows
+        ]
+
+    async def _get_retention_overview(
+        self, db: AsyncSession,
+        start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
+    ) -> Tuple[float, float]:
+        """Retorna (retencao_media_pct, taxa_conclusao_pct) das watch_sessions."""
+        completed_count = func.sum(case((WatchSession.completed == True, 1), else_=0))
+        total_count = func.count(WatchSession.id)
+        query = select(
+            func.coalesce(func.avg(WatchSession.percentage_watched), 0.0),
+            func.coalesce(completed_count, 0),
+            total_count,
+        )
+        if start_date:
+            query = query.where(WatchSession.started_at >= start_date)
+        if end_date:
+            query = query.where(WatchSession.started_at <= end_date)
+
+        avg_pct, completed, total = (await db.execute(query)).one()
+        avg_pct = float(avg_pct or 0.0)
+        completion_rate = (float(completed) / total) if total else 0.0
+        return avg_pct, completion_rate
+
+    async def get_insights(
+        self, db: AsyncSession, limit: int = 5,
+        start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
+    ) -> InsightsReport:
+        """Resumo executivo: agrega as metricas e monta um texto de insights.
+
+        O texto e gerado a partir dos numeros reais (deterministico) — nao usa
+        LLM, para nao correr risco de inventar estatisticas.
+        """
+        self._validate_date_range(start_date, end_date)
+
+        usage = await self.get_usage_report(db, start_date, end_date)
+        most_watched = await self.get_most_watched(db, limit, start_date, end_date)
+        abandonment = await self.get_highest_abandonment(db, limit, start_date, end_date)
+        genres = await self.get_popular_genres(db, limit, start_date, end_date)
+        top_users = await self.get_user_engagement(db, limit, start_date, end_date)
+        avg_pct, completion_rate = await self._get_retention_overview(db, start_date, end_date)
+
+        highlights: List[str] = []
+
+        if usage.total_watch_sessions == 0:
+            headline = "Sem visualizações registradas no período."
+            highlights.append(
+                "Nenhuma watch session encontrada. Verifique o filtro de datas "
+                "ou se há atividade de usuários no período."
+            )
+        else:
+            active_pct = (
+                (usage.active_users / usage.total_users * 100) if usage.total_users else 0.0
+            )
+            headline = (
+                f"{usage.total_watch_sessions} visualizações de {usage.active_users} "
+                f"usuários ativos, com {_format_duration(usage.average_watch_time_seconds)} "
+                "em média por sessão."
+            )
+
+            highlights.append(
+                f"Engajamento: {usage.active_users}/{usage.total_users} usuários ativos "
+                f"({active_pct:.0f}%) somaram {usage.total_watch_sessions} sessões de visualização."
+            )
+            highlights.append(
+                f"Tempo médio assistido por sessão: {_format_duration(usage.average_watch_time_seconds)}; "
+                f"retenção média de {avg_pct * 100:.0f}% do vídeo e "
+                f"{completion_rate * 100:.0f}% das sessões concluídas até o fim."
+            )
+
+            if most_watched:
+                top = most_watched[0]
+                highlights.append(
+                    f"Vídeo mais assistido: \"{top.title}\" com {top.count} visualizações."
+                )
+            if genres:
+                g = genres[0]
+                highlights.append(
+                    f"Gênero que mais prende: \"{g.name}\" lidera em tempo assistido "
+                    f"({_format_duration(g.total_watch_time_seconds)} no total)."
+                )
+            if abandonment and abandonment[0].abandonment_rate > 0:
+                ab = abandonment[0]
+                highlights.append(
+                    f"Atenção: \"{ab.title}\" tem a maior taxa de abandono "
+                    f"({ab.abandonment_rate * 100:.0f}%) — candidato a revisão."
+                )
+            if top_users:
+                u = top_users[0]
+                highlights.append(
+                    f"Usuário mais engajado: {u.name} — {u.sessions} sessões, "
+                    f"{_format_duration(u.total_watch_time_seconds)} assistidos "
+                    f"(retenção média {u.average_percentage_watched * 100:.0f}%)."
+                )
+
+        return InsightsReport(
+            generated_at=datetime.now(timezone.utc),
+            period_start=start_date,
+            period_end=end_date,
+            headline=headline,
+            highlights=highlights,
+            usage=usage,
+            average_percentage_watched=avg_pct,
+            completion_rate=completion_rate,
+            most_watched=most_watched,
+            highest_abandonment=abandonment,
+            popular_genres=genres,
+            top_users=top_users,
+        )

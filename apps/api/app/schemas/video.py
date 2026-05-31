@@ -50,6 +50,7 @@ class VideoResponse(BaseModel):
     id: uuid.UUID
     title: str
     description: Optional[str] = None
+    summary: Optional[str] = None
     url: str
     duration_seconds: int
     release_date: Optional[date] = None

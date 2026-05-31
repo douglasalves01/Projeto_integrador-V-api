@@ -38,10 +38,14 @@ class Settings(BaseSettings):
     AI_SERVICE_URL: str = "http://ai:8000/api/v1"
     AI_SERVICE_API_KEY: str = ""
     AI_ENABLED: bool = True
+    AI_CHAT_TIMEOUT_SEC: float = 20.0
+    AI_ENCODE_TIMEOUT_SEC: float = 5.0
     SEMANTIC_SEARCH_ENABLED: bool = True
 
     # Chat — anexar sugestões de vídeo (busca semântica / textual)
     CHAT_ATTACH_VIDEOS: bool = True
+    CHAT_VODCHAT_TIMEOUT_SEC: float = 20.0
+    CHAT_VIDEO_SEARCH_TIMEOUT_SEC: float = 8.0
     CHAT_VIDEO_SUGGESTIONS_LIMIT: int = 5
     CHAT_VIDEO_CANDIDATE_LIMIT: int = 24
     CHAT_SEMANTIC_MAX_DISTANCE: float = 0.58

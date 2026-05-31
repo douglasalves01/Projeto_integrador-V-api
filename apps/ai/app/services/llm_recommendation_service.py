@@ -106,6 +106,7 @@ def load_llm_models(
                 base_model_id=vodchat_base_model_id,
                 gguf_path=vodchat_gguf_path,
                 max_new_tokens=settings.VODCHAT_MAX_NEW_TOKENS,
+                max_time_seconds=settings.VODCHAT_MAX_TIME_SECONDS,
             )
             vodchat.load()
             logger.info("VodChat carregado (backend=%s)", vodchat.backend)

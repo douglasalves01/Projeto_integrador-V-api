@@ -7,10 +7,12 @@ modelo via `vocab.json`.
 
 from __future__ import annotations
 
+import time
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -139,6 +141,8 @@ def chat(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ) -> ChatResponse:
+    started = time.perf_counter()
+    logger.info("LLM chat request started", user_id=str(user_id), chars=len(payload.message))
     ensure_user_access(current_user, user_id)
 
     if not svc.get_model_info().get("loaded"):
@@ -159,6 +163,12 @@ def chat(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),
         ) from exc
+    logger.info(
+        "LLM chat request completed",
+        user_id=str(user_id),
+        latency_ms=round((time.perf_counter() - started) * 1000, 2),
+        reply_chars=len(result.get("reply") or ""),
+    )
     return ChatResponse(**result)
 
 

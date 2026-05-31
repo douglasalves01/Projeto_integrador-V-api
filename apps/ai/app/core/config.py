@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     VODCHAT_BASE_MODEL: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
     VODCHAT_GGUF_PATH: str | None = None
     VODCHAT_MAX_NEW_TOKENS: int = 160
+    VODCHAT_MAX_TIME_SECONDS: float | None = 20.0
     LLM_ENABLED: bool = True
     VODCHAT_ENABLED: bool = True
 

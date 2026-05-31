@@ -52,6 +52,46 @@ _DISCOVER_HINTS = (
     "policial",
 )
 
+# Categorias que realmente existem no acervo (apps/ai/data/categories.json).
+CATALOG_CATEGORIES = (
+    "Natureza",
+    "Culinária",
+    "Música",
+    "Esporte",
+    "Tecnologia",
+    "Turismo",
+    "Educação",
+    "Ciência",
+    "Saúde",
+    "Arte",
+)
+
+# Generos de filme/serie que o usuario costuma pedir mas que NAO existem no
+# acervo educativo. Usado para responder com honestidade em vez de empurrar
+# vizinhos semanticos fora de contexto (ex.: documentario de natureza).
+_OUT_OF_CATALOG_GENRES = frozenset(
+    {
+        "acao",
+        "aventura",
+        "terror",
+        "horror",
+        "comedia",
+        "drama",
+        "suspense",
+        "romance",
+        "ficcao",
+        "guerra",
+        "faroeste",
+        "policial",
+        "policia",
+        "crime",
+        "thriller",
+        "anime",
+        "animacao",
+        "novela",
+    }
+)
+
 _TOPIC_STOPWORDS = frozenset(
     {
         "de",
@@ -261,8 +301,26 @@ def expand_topic_keywords(search_query: str) -> list[str]:
     return sorted(expanded)
 
 
+def is_out_of_catalog_genre(search_query: str) -> bool:
+    """True se o pedido for um genero de filme/serie inexistente no acervo.
+
+    Evita responder 'filmes de acao' com documentarios de natureza (vizinhos
+    semanticos), retornando uma mensagem honesta com as categorias reais.
+    """
+    keywords = topic_keywords(search_query)
+    if not keywords:
+        return False
+    # So bloqueia quando TODO o tema cai em generos fora do catalogo. Assim
+    # pedidos validos ("python", "futebol") seguem o fluxo normal.
+    return all(word in _OUT_OF_CATALOG_GENRES for word in keywords)
+
+
 def video_matches_topic(title: str, description: str | None, keywords: list[str]) -> bool:
     if not keywords:
         return True
     haystack = _normalize(f"{title} {description or ''}")
-    return any(keyword in haystack for keyword in keywords)
+    # Match por palavra inteira evita falso-positivo de substring
+    # (ex.: 'acao' dentro de 'acaonome' ou termos genericos soltos).
+    return any(
+        re.search(rf"\b{re.escape(keyword)}\b", haystack) for keyword in keywords
+    )

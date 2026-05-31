@@ -65,10 +65,14 @@ class AIClient:
         base_url: str,
         api_key: str | None = None,
         timeout_sec: float = 2.5,
+        chat_timeout_sec: float = 20.0,
+        encode_timeout_sec: float = 5.0,
     ) -> None:
         self.base_url = normalize_ai_base_url(base_url)
         self.api_key = api_key
         self.timeout = httpx.Timeout(timeout_sec, connect=1.0)
+        self.chat_timeout = httpx.Timeout(chat_timeout_sec, connect=2.0)
+        self.encode_timeout = httpx.Timeout(encode_timeout_sec, connect=1.0)
         self._breaker = _CircuitBreaker()
 
     def _headers(self, jwt: str | None = None) -> dict[str, str]:
@@ -102,9 +106,18 @@ class AIClient:
             resp.raise_for_status()
             self._breaker.record_success()
             return resp.json()
+        except httpx.HTTPStatusError as exc:
+            self._breaker.record_failure()
+            logger.warning(
+                "AI recommendations failed status=%s url=%s body=%s",
+                exc.response.status_code,
+                url,
+                exc.response.text[:300],
+            )
+            return None
         except (httpx.HTTPError, httpx.TimeoutException) as exc:
             self._breaker.record_failure()
-            logger.warning("AI request failed: %s", exc)
+            logger.warning("AI recommendations failed url=%s error=%r", url, exc)
             return None
 
     async def chat(self, user_id: UUID, jwt: str, message: str) -> str | None:
@@ -112,16 +125,26 @@ class AIClient:
             return None
         url = f"{self.base_url}/llm/chat/{user_id}"
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=2.0)) as client:
+            logger.info("AI chat request started url=%s timeout=%s", url, self.chat_timeout)
+            async with httpx.AsyncClient(timeout=self.chat_timeout) as client:
                 resp = await client.post(
                     url, json={"message": message}, headers=self._headers(jwt)
                 )
             resp.raise_for_status()
             self._breaker.record_success()
             return resp.json().get("reply")
+        except httpx.HTTPStatusError as exc:
+            self._breaker.record_failure()
+            logger.warning(
+                "AI chat failed status=%s url=%s body=%s",
+                exc.response.status_code,
+                url,
+                exc.response.text[:300],
+            )
+            return None
         except (httpx.HTTPError, httpx.TimeoutException) as exc:
             self._breaker.record_failure()
-            logger.warning("AI chat failed: %s", exc)
+            logger.warning("AI chat failed url=%s error=%r", url, exc)
             return None
 
     async def encode(self, text: str) -> list[float] | None:
@@ -130,14 +153,23 @@ class AIClient:
             return None
         url = f"{self.base_url}/embeddings/encode"
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=1.0)) as client:
+            async with httpx.AsyncClient(timeout=self.encode_timeout) as client:
                 resp = await client.get(url, params={"q": text}, headers=self._headers())
             resp.raise_for_status()
             self._breaker.record_success()
             return resp.json().get("embedding")
+        except httpx.HTTPStatusError as exc:
+            self._breaker.record_failure()
+            logger.warning(
+                "AI encode failed status=%s url=%s body=%s",
+                exc.response.status_code,
+                url,
+                exc.response.text[:300],
+            )
+            return None
         except (httpx.HTTPError, httpx.TimeoutException) as exc:
             self._breaker.record_failure()
-            logger.warning("AI encode failed: %s", exc)
+            logger.warning("AI encode failed url=%s error=%r", url, exc)
             return None
 
     async def index_embeddings(self) -> dict[str, Any] | None:
@@ -170,9 +202,19 @@ class AIClient:
 _ai_client: AIClient | None = None
 
 
-def init_ai_client(base_url: str, api_key: str | None = None) -> AIClient:
+def init_ai_client(
+    base_url: str,
+    api_key: str | None = None,
+    chat_timeout_sec: float = 20.0,
+    encode_timeout_sec: float = 5.0,
+) -> AIClient:
     global _ai_client
-    _ai_client = AIClient(base_url=base_url, api_key=api_key)
+    _ai_client = AIClient(
+        base_url=base_url,
+        api_key=api_key,
+        chat_timeout_sec=chat_timeout_sec,
+        encode_timeout_sec=encode_timeout_sec,
+    )
     return _ai_client
 
 

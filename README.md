@@ -650,6 +650,7 @@ curl -X POST http://localhost:8001/admin/index-embeddings \
 
 | Documento                                                | Público                       |
 | -------------------------------------------------------- | ----------------------------- |
+| [README_APRESENTACAO.md](README_APRESENTACAO.md)         | Roteiro completo para apresentação/defesa |
 | [docs/INTEGRACAO_USUARIO.md](docs/INTEGRACAO_USUARIO.md) | App do usuário final          |
 | [docs/INTEGRACAO_ADMIN.md](docs/INTEGRACAO_ADMIN.md)     | Painel administrativo         |
 | [docs/INTEGRATION_FRONTS.md](docs/INTEGRATION_FRONTS.md) | Integração geral de frontends |

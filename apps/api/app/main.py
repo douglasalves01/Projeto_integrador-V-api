@@ -1,11 +1,20 @@
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
+
 
 def create_app() -> FastAPI:
+    logging.basicConfig(
+        level=logging.DEBUG if settings.DEBUG else logging.INFO,
+        format="%(levelname)s:%(name)s:%(message)s",
+    )
+
     app = FastAPI(
         title=settings.APP_NAME,
         docs_url="/docs",
@@ -18,6 +27,8 @@ def create_app() -> FastAPI:
         init_ai_client(
             base_url=settings.AI_SERVICE_URL,
             api_key=settings.AI_SERVICE_API_KEY or None,
+            chat_timeout_sec=settings.AI_CHAT_TIMEOUT_SEC,
+            encode_timeout_sec=settings.AI_ENCODE_TIMEOUT_SEC,
         )
 
     app.add_middleware(
@@ -30,6 +41,11 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
+        logger.exception(
+            "Unhandled API exception path=%s method=%s",
+            request.url.path,
+            request.method,
+        )
         return JSONResponse(
             status_code=500,
             content={"detail": "Internal server error"},

@@ -55,6 +55,10 @@ services:
       AI_SERVICE_URL: http://ai:8000/api/v1
       AI_SERVICE_API_KEY: ${AI_API_KEY:-change-me-ai-api-key}
       AI_ENABLED: "true"
+      AI_CHAT_TIMEOUT_SEC: "${AI_CHAT_TIMEOUT_SEC:-20}"
+      AI_ENCODE_TIMEOUT_SEC: "${AI_ENCODE_TIMEOUT_SEC:-5}"
+      CHAT_VODCHAT_TIMEOUT_SEC: "${CHAT_VODCHAT_TIMEOUT_SEC:-20}"
+      CHAT_VIDEO_SEARCH_TIMEOUT_SEC: "${CHAT_VIDEO_SEARCH_TIMEOUT_SEC:-8}"
       SEMANTIC_SEARCH_ENABLED: "true"
       VIDEO_STORAGE_DIR: /app/videos_storage
       CATALOG_PARQUET: /app/ai_data/contents.parquet
@@ -93,6 +97,8 @@ services:
       VODCHAT_ADAPTER_PATH: /app/models/vodchat/vodchat-lora-final
       LLM_ENABLED: "${LLM_ENABLED:-true}"
       VODCHAT_ENABLED: "${VODCHAT_ENABLED:-false}"  # false por padrão — habilitar só com GPU/RAM suficiente
+      VODCHAT_MAX_NEW_TOKENS: "${VODCHAT_MAX_NEW_TOKENS:-160}"
+      VODCHAT_MAX_TIME_SECONDS: "${VODCHAT_MAX_TIME_SECONDS:-20}"
     ports:
       - "8002:8000"
     volumes:

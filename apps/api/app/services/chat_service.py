@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,8 +13,10 @@ from app.core.config import settings
 from app.models.video import Video
 from app.schemas.chat import ChatResponse, ChatVideoSuggestion
 from app.services.chat_intent import (
+    CATALOG_CATEGORIES,
     expand_topic_keywords,
     extract_search_query,
+    is_out_of_catalog_genre,
     should_attach_videos,
     topic_keywords,
     video_matches_topic,
@@ -44,10 +47,33 @@ class ChatService:
         message: str,
         jwt: str | None,
     ) -> ChatResponse:
+        started = time.perf_counter()
         attach_videos = (
             settings.CHAT_ATTACH_VIDEOS and should_attach_videos(message)
         )
         search_query = extract_search_query(message) if attach_videos else None
+        logger.info(
+            "Chat request started user_id=%s attach_videos=%s search_query=%r",
+            user_id,
+            attach_videos,
+            search_query,
+        )
+
+        # Pedido de genero de filme/serie que nao existe no acervo educativo:
+        # responde com honestidade, sem chamar IA nem empurrar vizinhos semanticos.
+        if search_query and is_out_of_catalog_genre(search_query):
+            logger.info(
+                "Chat request out-of-catalog genre user_id=%s search_query=%r",
+                user_id,
+                search_query,
+            )
+            return ChatResponse(
+                reply=_out_of_catalog_reply(search_query),
+                fallback=False,
+                videos=[],
+                search_query=search_query,
+                catalog_empty=True,
+            )
 
         vodchat_task = asyncio.create_task(
             self._fetch_vodchat_reply(user_id, message, jwt)
@@ -58,15 +84,52 @@ class ChatService:
             else None
         )
 
-        reply, fallback = await vodchat_task
-        videos = await videos_task if videos_task else []
+        try:
+            reply, fallback = await asyncio.wait_for(
+                vodchat_task,
+                timeout=settings.CHAT_VODCHAT_TIMEOUT_SEC,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "VodChat timed out user_id=%s timeout_sec=%s",
+                user_id,
+                settings.CHAT_VODCHAT_TIMEOUT_SEC,
+            )
+            reply, fallback = None, True
 
-        return self._build_response(
+        try:
+            videos = (
+                await asyncio.wait_for(
+                    videos_task,
+                    timeout=settings.CHAT_VIDEO_SEARCH_TIMEOUT_SEC,
+                )
+                if videos_task
+                else []
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Chat video search timed out user_id=%s search_query=%r timeout_sec=%s",
+                user_id,
+                search_query,
+                settings.CHAT_VIDEO_SEARCH_TIMEOUT_SEC,
+            )
+            videos = []
+
+        response = self._build_response(
             reply=reply,
             fallback=fallback,
             videos=videos,
             search_query=search_query,
         )
+        logger.info(
+            "Chat request completed user_id=%s fallback=%s videos=%d catalog_empty=%s latency_ms=%.2f",
+            user_id,
+            response.fallback,
+            len(response.videos),
+            response.catalog_empty,
+            (time.perf_counter() - started) * 1000,
+        )
+        return response
 
     async def _fetch_vodchat_reply(
         self,
@@ -75,15 +138,18 @@ class ChatService:
         jwt: str | None,
     ) -> tuple[str | None, bool]:
         if not jwt:
+            logger.warning("VodChat skipped because JWT was not forwarded user_id=%s", user_id)
             return None, True
         try:
             from app.integrations.ai_client import get_ai_client
 
             ai = get_ai_client()
             if ai is None or not ai.available:
+                logger.warning("VodChat skipped because AI client is unavailable user_id=%s", user_id)
                 return None, True
             reply = await ai.chat(user_id, jwt=jwt, message=message)
             if reply and reply.strip():
+                logger.info("VodChat reply received user_id=%s chars=%d", user_id, len(reply))
                 return reply.strip(), False
         except Exception as exc:
             logger.warning("VodChat unavailable: %s", exc)
@@ -97,6 +163,15 @@ class ChatService:
         try:
             limit = settings.CHAT_VIDEO_SUGGESTIONS_LIMIT
             keywords = expand_topic_keywords(search_query)
+
+            # Para temas conhecidos, a busca textual por palavras-chave e mais rapida
+            # e evita que embeddings lentos bloqueiem a resposta do chat.
+            if keywords:
+                by_keywords = await self.video_service.search_videos_by_topic_keywords(
+                    db, keywords, limit
+                )
+                if by_keywords:
+                    return [_video_to_suggestion(video) for video in by_keywords]
 
             if settings.CHAT_SEMANTIC_SEARCH_ON_CHAT and settings.SEMANTIC_SEARCH_ENABLED:
                 videos = await self._semantic_chat_search(
@@ -149,7 +224,7 @@ class ChatService:
         if videos:
             return videos
 
-        # Fallback: titulo/descricao (receita, cozinha…) — "culinaria" raramente esta no titulo.
+        # Fallback: titulo/descricao (receita, cozinha...) — "culinaria" raramente esta no titulo.
         if keywords:
             by_keywords = await self.video_service.search_videos_by_topic_keywords(
                 db, keywords, limit
@@ -247,6 +322,18 @@ def _is_unusable_vodchat_reply(text: str) -> bool:
     if _ENGLISH_HINTS.search(stripped):
         return True
     return False
+
+
+def _out_of_catalog_reply(search_query: str) -> str:
+    topic = " ".join(topic_keywords(search_query)) or search_query
+    categorias = ", ".join(CATALOG_CATEGORIES)
+    return (
+        f"Não trabalhamos com \"{topic}\" — nosso acervo é de vídeos educativos "
+        "e culturais brasileiros, não de filmes por gênero.\n\n"
+        f"As categorias disponíveis são: {categorias}.\n\n"
+        "Tente pedir, por exemplo: \"vídeos de natureza\", \"receitas de culinária\" "
+        "ou \"tutoriais de tecnologia\"."
+    )
 
 
 def _empty_catalog_reply(search_query: str) -> str:

@@ -18,8 +18,11 @@ O backend e escolhido pelo parametro `backend` ou pela presenca dos arquivos.
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 from typing import Literal, Sequence
+
+from loguru import logger
 
 DEFAULT_SYSTEM_PROMPT = (
     "Voce e o VodChat, assistente da plataforma de streaming VOD. "
@@ -41,6 +44,7 @@ class VodChat:
         gguf_path: str | Path | None = None,
         backend: Literal["transformers", "llamacpp", "auto"] = "auto",
         max_new_tokens: int = 160,
+        max_time_seconds: float | None = 20.0,
         temperature: float = 0.7,
         device: str | None = None,
         known_titles: list[str] | None = None,
@@ -50,6 +54,7 @@ class VodChat:
         self.base_model_id = base_model_id
         self.gguf_path = Path(gguf_path) if gguf_path else None
         self.max_new_tokens = max_new_tokens
+        self.max_time_seconds = max_time_seconds
         self.temperature = temperature
         self.device = device
         self.known_titles = known_titles or []
@@ -176,6 +181,36 @@ class VodChat:
             )
         return self._generate(user_message.strip(), system_prompt=effective_system)
 
+    def summarize(
+        self,
+        title: str,
+        description: str | None,
+        max_chars: int = 1500,
+    ) -> str:
+        """Gera um resumo curto (2-3 frases) a partir do titulo + descricao.
+
+        Reaproveita o mesmo LLM do chat. Pensado para rodar OFFLINE (batch),
+        ja que TinyLlama em CPU e lento. A descricao e truncada para caber no
+        contexto do modelo.
+        """
+        self.load()
+        source = (description or "").strip()
+        if not source:
+            return ""
+        source = source[:max_chars]
+        system_prompt = (
+            "Voce resume videos de uma plataforma de streaming educativa, em "
+            "portugues do Brasil. Escreva um resumo objetivo de 2 a 3 frases sobre "
+            "o conteudo do video. Nao use hashtags, links, emojis, marcas de tempo "
+            "(timestamps) nem listas. Responda apenas com o resumo."
+        )
+        prompt = (
+            f"Titulo: {title}\n\n"
+            f"Descricao original:\n{source}\n\n"
+            "Resumo:"
+        )
+        return self._generate(prompt, system_prompt=system_prompt)
+
     # ------------------------------------------------------------------
     # Backend-specific generation
     # ------------------------------------------------------------------
@@ -214,6 +249,15 @@ class VodChat:
         if self._logits_processors is None:
             self._logits_processors = self._build_logits_processors()
 
+        started = time.perf_counter()
+        logger.info(
+            "VodChat generation started",
+            backend=self.backend,
+            device=str(self._model.device),  # type: ignore[union-attr]
+            prompt_chars=len(prompt),
+            max_new_tokens=self.max_new_tokens,
+            max_time_seconds=self.max_time_seconds,
+        )
         with torch.no_grad():
             gen_kwargs = dict(
                 max_new_tokens=self.max_new_tokens,
@@ -223,6 +267,8 @@ class VodChat:
                 repetition_penalty=1.1,
                 pad_token_id=self._tokenizer.eos_token_id,  # type: ignore[union-attr]
             )
+            if self.max_time_seconds and self.max_time_seconds > 0:
+                gen_kwargs["max_time"] = self.max_time_seconds
             if self._logits_processors is not None:
                 gen_kwargs["logits_processor"] = self._logits_processors
             out = self._model.generate(**inputs, **gen_kwargs)  # type: ignore[union-attr]
@@ -234,9 +280,22 @@ class VodChat:
         if self.use_title_constraints and self.known_titles:
             from app.models.vodchat_constraints import filter_unknown_titles
             completion = filter_unknown_titles(completion, set(self.known_titles))
+        logger.info(
+            "VodChat generation completed",
+            backend=self.backend,
+            latency_ms=round((time.perf_counter() - started) * 1000, 2),
+            completion_chars=len(completion),
+        )
         return completion.strip()
 
     def _gen_llamacpp(self, user_message: str, system_prompt: str) -> str:
+        started = time.perf_counter()
+        logger.info(
+            "VodChat generation started",
+            backend=self.backend,
+            max_new_tokens=self.max_new_tokens,
+            max_time_seconds=None,
+        )
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},
@@ -253,4 +312,10 @@ class VodChat:
             from app.models.vodchat_constraints import filter_unknown_titles
 
             completion = filter_unknown_titles(completion, set(self.known_titles))
+        logger.info(
+            "VodChat generation completed",
+            backend=self.backend,
+            latency_ms=round((time.perf_counter() - started) * 1000, 2),
+            completion_chars=len(completion),
+        )
         return completion

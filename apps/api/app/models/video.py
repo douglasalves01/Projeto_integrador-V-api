@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, date
 
-from sqlalchemy import Column, String, Integer, DateTime, Date
+from sqlalchemy import Column, String, Integer, DateTime, Date, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -14,6 +14,7 @@ class Video(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String(200), nullable=False)
     description = Column(String(2000), nullable=True)
+    summary = Column(Text, nullable=True)  # resumo gerado por IA (VodChat), backfill offline
     url = Column(String(500), nullable=False)
     duration_seconds = Column(Integer, nullable=False)
     release_date = Column(Date, nullable=True)
