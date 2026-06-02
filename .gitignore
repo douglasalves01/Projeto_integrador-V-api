@@ -38,3 +38,6 @@ alembic/versions/__pycache__/
 .DS_Store
 Thumbs.db
 .kiro
+
+# Admin dashboard uploads (local/runtime)
+apps/api/uploads/
