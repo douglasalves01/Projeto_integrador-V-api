@@ -9,8 +9,10 @@ from app.schemas.chat import ChatVideoSuggestion
 from app.services.chat_intent import (
     expand_topic_keywords,
     extract_search_query,
+    has_catalog_topic,
     is_greeting_only,
     should_attach_videos,
+    should_use_personalized_recommendations,
     topic_keywords,
     video_matches_topic,
 )
@@ -24,6 +26,20 @@ def test_should_attach_videos_culinaria():
 def test_should_not_attach_greeting():
     assert should_attach_videos("oi") is False
     assert is_greeting_only("oi") is True
+
+
+def test_namorada_query_uses_personalized_not_catalog_search():
+    message = "O que ver hoje com a namorada?"
+    assert extract_search_query(message) == ""
+    assert has_catalog_topic(message) is False
+    assert should_attach_videos(message) is False
+    assert should_use_personalized_recommendations(message) is True
+
+
+def test_musicas_still_catalog_search():
+    assert extract_search_query("Musicas") == "musicas"
+    assert has_catalog_topic("Musicas") is True
+    assert should_attach_videos("Musicas") is True
 
 
 def test_extract_search_query_strips_prefix():
@@ -154,7 +170,7 @@ async def test_chat_returns_videos_when_search_finds_results(auth_client: AsyncC
 
     assert response.status_code == 200
     data = response.json()
-    assert data["fallback"] is True
+    assert data["fallback"] is False
     assert len(data["videos"]) == 1
     assert data["videos"][0]["title"] == "Cozinha em 30 min"
     assert data["search_query"] is not None
@@ -194,6 +210,37 @@ async def test_chat_vodchat_reply_with_videos(auth_client: AsyncClient):
     assert data["fallback"] is False
     assert "Natureza Selvagem" in data["reply"]
     assert len(data["videos"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_chat_namorada_uses_personalized_recommendations(auth_client: AsyncClient):
+    video_id = uuid.uuid4()
+    suggestion = ChatVideoSuggestion(
+        id=video_id,
+        title="Bossa Nova no Violao",
+        description="musica relaxante",
+        url="https://example.com/v.mp4",
+        duration_seconds=300,
+    )
+
+    with patch(
+        "app.services.chat_service.ChatService._fetch_personalized_suggestions",
+        new_callable=AsyncMock,
+        return_value=[suggestion],
+    ):
+        response = await auth_client.post(
+            "/chat",
+            json={"message": "O que ver hoje com a namorada?"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["fallback"] is False
+    assert data["search_query"] in (None, "")
+    assert "namorada" not in data["reply"].lower()
+    assert "assistir a dois" in data["reply"].lower()
+    assert len(data["videos"]) == 1
+    assert data["videos"][0]["title"] == "Bossa Nova no Violao"
 
 
 @pytest.mark.asyncio

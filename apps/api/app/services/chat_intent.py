@@ -123,17 +123,55 @@ _TOPIC_STOPWORDS = frozenset(
         "recomende",
         "recomendar",
         "recomenda",
+        "indica",
+        "indicar",
         "indique",
         "sugira",
+        "legal",
+        "hoje",
+        "agora",
+        "noite",
+        "tarde",
+        "manha",
         "falem",
         "fale",
         "falar",
         "fala",
         "que",
+        "a",
+    }
+)
+
+# Palavras de contexto social/temporal — nao sao temas do catalogo educativo.
+_CONTEXT_ONLY_WORDS = frozenset(
+    {
+        "namorada",
+        "namorado",
+        "namoro",
+        "casal",
+        "familia",
+        "amigo",
+        "amiga",
+        "amigos",
+        "crianca",
+        "criancas",
+        "filho",
+        "filhos",
+        "esposa",
+        "esposo",
+        "marido",
+        "mulher",
+        "homem",
+        "pessoa",
+        "pessoas",
+        "galera",
+        "turma",
     }
 )
 
 _PREFIX_PATTERNS = (
+    r"^o que assistir\s+",
+    r"^o que ver\s+",
     r"^quero assistir\s+",
     r"^quero videos de\s+",
     r"^quero video de\s+",
@@ -191,43 +229,103 @@ def is_greeting_only(message: str) -> bool:
     return normalized in _GREETINGS or len(normalized) < 4
 
 
+def _matches_catalog_topic(word: str) -> bool:
+    """True se a palavra for tema real do acervo (natureza, musica, culinaria...)."""
+    normalized = _normalize(word)
+    if normalized in _CATALOG_TOPIC_ROOTS:
+        return True
+    for root, synonyms in _TOPIC_SYNONYMS.items():
+        if normalized == root or normalized.startswith(root) or root.startswith(normalized):
+            return True
+        if any(
+            normalized in syn or syn.startswith(normalized) or normalized.startswith(syn)
+            for syn in synonyms
+            if len(syn) >= 4
+        ):
+            return True
+    for category in CATALOG_CATEGORIES:
+        category_norm = _normalize(category)
+        if normalized in category_norm or category_norm.startswith(normalized):
+            return True
+    return False
+
+
+def has_catalog_topic(message: str) -> bool:
+    """Indica se a mensagem cita um tema pesquisavel no catalogo."""
+    query = _extract_normalized_query(message)
+    keywords = topic_keywords(query)
+    if not keywords:
+        return False
+    if all(keyword in _CONTEXT_ONLY_WORDS for keyword in keywords):
+        return False
+    return any(_matches_catalog_topic(keyword) for keyword in keywords)
+
+
 def should_attach_videos(message: str) -> bool:
     """Indica se a mensagem parece pedido de descoberta de conteúdo."""
     stripped = message.strip()
     if len(stripped) < 3 or is_greeting_only(stripped):
         return False
-    normalized = _normalize(stripped)
-    if any(hint in normalized for hint in _DISCOVER_HINTS):
-        return True
-    # Mensagens longas costumam ser pedidos abertos ("quero algo leve para hoje").
-    return len(normalized.split()) >= 4
+    if should_use_personalized_recommendations(stripped):
+        return False
+    return has_catalog_topic(stripped)
 
 
-def extract_search_query(message: str) -> str:
-    """Extrai o tema da mensagem (ex.: 'policia', 'culinaria') para busca no catalogo."""
-    query = message.strip()
-    normalized = _normalize(query)
+def is_recommendation_request(message: str) -> bool:
+    """Detecta pedidos genéricos do tipo "o que assistir hoje?"."""
+    normalized = _normalize(message)
+    generic_hints = (
+        "o que assistir",
+        "o que ver",
+        "me indica",
+        "me recomende",
+        "recomend",
+        "sugira",
+        "algo legal",
+        "assistir hoje",
+        "ver hoje",
+    )
+    return any(hint in normalized for hint in generic_hints)
 
+
+def should_use_personalized_recommendations(message: str) -> bool:
+    """Pedidos abertos sem tema de catalogo — usa recomendacoes do usuario."""
+    stripped = message.strip()
+    if len(stripped) < 3 or is_greeting_only(stripped):
+        return False
+    if has_catalog_topic(stripped):
+        return False
+    return is_recommendation_request(stripped) or bool(
+        re.search(r"\b(ver|assistir|recomend|indic|sugir)\b", _normalize(stripped))
+    )
+
+
+def _extract_normalized_query(message: str) -> str:
+    normalized = _normalize(message.strip())
     for pattern in _PREFIX_PATTERNS:
         normalized = re.sub(pattern, "", normalized, flags=re.IGNORECASE)
-
     for phrase in _FILLER_PHRASES:
         normalized = normalized.replace(phrase, " ")
-
     normalized = re.sub(
         r"^(videos|video|filmes|filme|series|serie)\s+",
         "",
         normalized,
         flags=re.IGNORECASE,
     )
-    normalized = re.sub(r"\s+", " ", normalized).strip(" .,!?:;")
+    return re.sub(r"\s+", " ", normalized).strip(" .,!?:;")
 
-    keywords = topic_keywords(normalized)
-    if keywords:
-        return " ".join(keywords)
-    if len(normalized) >= 3:
-        return normalized
-    return query
+
+def extract_search_query(message: str) -> str:
+    """Extrai o tema da mensagem (ex.: 'policia', 'culinaria') para busca no catalogo."""
+    keywords = topic_keywords(_extract_normalized_query(message))
+    if not keywords:
+        return ""
+    if all(keyword in _CONTEXT_ONLY_WORDS for keyword in keywords):
+        return ""
+    catalog_keywords = [keyword for keyword in keywords if _matches_catalog_topic(keyword)]
+    if catalog_keywords:
+        return " ".join(catalog_keywords)
+    return ""
 
 
 _TOPIC_SYNONYMS: dict[str, tuple[str, ...]] = {
@@ -274,6 +372,10 @@ _TOPIC_SYNONYMS: dict[str, tuple[str, ...]] = {
         "investigador",
         "detetive",
     ),
+}
+
+_CATALOG_TOPIC_ROOTS = frozenset(_TOPIC_SYNONYMS.keys()) | {
+    _normalize(category) for category in CATALOG_CATEGORIES
 }
 
 

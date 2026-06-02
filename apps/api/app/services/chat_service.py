@@ -18,6 +18,7 @@ from app.services.chat_intent import (
     extract_search_query,
     is_out_of_catalog_genre,
     should_attach_videos,
+    should_use_personalized_recommendations,
     topic_keywords,
     video_matches_topic,
 )
@@ -39,6 +40,9 @@ _ENGLISH_HINTS = re.compile(
 class ChatService:
     def __init__(self) -> None:
         self.video_service = VideoService()
+        from app.services.recommendation_service import RecommendationService
+
+        self.recommendation_service = RecommendationService()
 
     async def handle(
         self,
@@ -48,6 +52,30 @@ class ChatService:
         jwt: str | None,
     ) -> ChatResponse:
         started = time.perf_counter()
+
+        # Pedidos abertos ("o que ver com a namorada?") — recomendacoes personalizadas.
+        if should_use_personalized_recommendations(message):
+            personalized = await self._fetch_personalized_suggestions(
+                db, user_id, jwt
+            )
+            if personalized:
+                response = ChatResponse(
+                    reply=_recommendation_reply(personalized, message),
+                    fallback=False,
+                    videos=personalized,
+                    search_query=None,
+                    catalog_empty=False,
+                )
+                logger.info(
+                    "Chat request completed (personalized-fast-path) user_id=%s fallback=%s videos=%d catalog_empty=%s latency_ms=%.2f",
+                    user_id,
+                    response.fallback,
+                    len(response.videos),
+                    response.catalog_empty,
+                    (time.perf_counter() - started) * 1000,
+                )
+                return response
+
         attach_videos = (
             settings.CHAT_ATTACH_VIDEOS and should_attach_videos(message)
         )
@@ -75,15 +103,46 @@ class ChatService:
                 catalog_empty=True,
             )
 
+        videos: list[ChatVideoSuggestion] = []
+        try:
+            videos = (
+                await asyncio.wait_for(
+                    self._fetch_video_suggestions(db, search_query),
+                    timeout=settings.CHAT_VIDEO_SEARCH_TIMEOUT_SEC,
+                )
+                if attach_videos and search_query
+                else []
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Chat video search timed out user_id=%s search_query=%r timeout_sec=%s",
+                user_id,
+                search_query,
+                settings.CHAT_VIDEO_SEARCH_TIMEOUT_SEC,
+            )
+            videos = []
+
+        # Fast-path: quando a resposta será baseada no catálogo, não espere o LLM.
+        if videos and settings.CHAT_PREFER_CATALOG_REPLY:
+            response = self._build_response(
+                reply=None,
+                fallback=False,
+                videos=videos,
+                search_query=search_query,
+            )
+            logger.info(
+                "Chat request completed (catalog-fast-path) user_id=%s fallback=%s videos=%d catalog_empty=%s latency_ms=%.2f",
+                user_id,
+                response.fallback,
+                len(response.videos),
+                response.catalog_empty,
+                (time.perf_counter() - started) * 1000,
+            )
+            return response
+
         vodchat_task = asyncio.create_task(
             self._fetch_vodchat_reply(user_id, message, jwt)
         )
-        videos_task = (
-            asyncio.create_task(self._fetch_video_suggestions(db, search_query))
-            if attach_videos and search_query
-            else None
-        )
-
         try:
             reply, fallback = await asyncio.wait_for(
                 vodchat_task,
@@ -96,24 +155,6 @@ class ChatService:
                 settings.CHAT_VODCHAT_TIMEOUT_SEC,
             )
             reply, fallback = None, True
-
-        try:
-            videos = (
-                await asyncio.wait_for(
-                    videos_task,
-                    timeout=settings.CHAT_VIDEO_SEARCH_TIMEOUT_SEC,
-                )
-                if videos_task
-                else []
-            )
-        except asyncio.TimeoutError:
-            logger.warning(
-                "Chat video search timed out user_id=%s search_query=%r timeout_sec=%s",
-                user_id,
-                search_query,
-                settings.CHAT_VIDEO_SEARCH_TIMEOUT_SEC,
-            )
-            videos = []
 
         response = self._build_response(
             reply=reply,
@@ -195,6 +236,28 @@ class ChatService:
             return [_video_to_suggestion(video) for video in videos]
         except Exception as exc:
             logger.warning("Chat video search failed: %s", exc)
+            return []
+
+    async def _fetch_personalized_suggestions(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        jwt: str | None,
+    ) -> list[ChatVideoSuggestion]:
+        try:
+            limit = settings.CHAT_VIDEO_SUGGESTIONS_LIMIT
+            recs = await self.recommendation_service.get_recommendations(
+                db,
+                user_id,
+                jwt=jwt,
+            )
+            suggestions: list[ChatVideoSuggestion] = []
+            for rec in recs[:limit]:
+                video = await self.video_service.get_video_for_watch(db, rec.video_id)
+                suggestions.append(_video_to_suggestion(video))
+            return suggestions
+        except Exception as exc:
+            logger.warning("Personalized chat suggestions failed: %s", exc)
             return []
 
     async def _semantic_chat_search(
@@ -357,6 +420,33 @@ def _catalog_reply(
     for index, video in enumerate(videos, start=1):
         lines.append(f"{index}. {video.title}")
     return "\n".join(lines)
+
+
+def _recommendation_reply(
+    videos: list[ChatVideoSuggestion],
+    message: str | None = None,
+) -> str:
+    normalized = _normalize_recommendation_context(message or "")
+    if "namorad" in normalized or "casal" in normalized:
+        header = "Separei sugestões para assistir a dois:"
+    elif "familia" in normalized or "filhos" in normalized or "crianc" in normalized:
+        header = "Separei sugestões para ver em família:"
+    elif "amig" in normalized:
+        header = "Separei sugestões para ver com amigos:"
+    else:
+        header = "Separei sugestões para você assistir hoje:"
+    lines = [header]
+    for index, video in enumerate(videos, start=1):
+        lines.append(f"{index}. {video.title}")
+    return "\n".join(lines)
+
+
+def _normalize_recommendation_context(message: str) -> str:
+    import unicodedata
+
+    lowered = message.strip().lower()
+    normalized = unicodedata.normalize("NFD", lowered)
+    return "".join(c for c in normalized if unicodedata.category(c) != "Mn")
 
 
 def _video_to_suggestion(video: Video) -> ChatVideoSuggestion:

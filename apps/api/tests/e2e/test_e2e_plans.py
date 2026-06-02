@@ -24,6 +24,11 @@ class TestPlanCRUD:
         assert response.status_code == 200
         assert response.json()["total"] >= 3
 
+    async def test_list_plans_without_auth(self, client: AsyncClient, seed_data):
+        response = await client.get("/plans")
+        assert response.status_code == 200
+        assert len(response.json()["items"]) >= 1
+
     async def test_delete_plan_in_use(self, admin_client: AsyncClient, seed_data):
         pid = str(seed_data["plans"][0]["id"])
         response = await admin_client.delete(f"/plans/{pid}")

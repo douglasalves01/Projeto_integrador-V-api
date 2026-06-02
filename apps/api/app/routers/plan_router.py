@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_user, require_role
+from app.auth.dependencies import require_role
 from app.core.constants import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.database.session import get_db
 from app.models.user import UserRole
@@ -29,9 +29,9 @@ async def create_plan(
 async def list_plans(
     page: int = Query(1, ge=1),
     page_size: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
-    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Lista planos sem autenticação (necessário para tela de cadastro)."""
     plans, total = await plan_service.list_plans(db, page, page_size)
     total_pages = math.ceil(total / page_size) if total > 0 else 0
     return PaginatedResponse(
