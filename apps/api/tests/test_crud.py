@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 
 import pytest
 from httpx import AsyncClient
@@ -116,6 +117,36 @@ async def test_search_videos(admin_client: AsyncClient):
     data = response.json()
     assert data["total"] >= 1
     assert "breaking" in data["items"][0]["title"].lower()
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_oversized_file(admin_client: AsyncClient, monkeypatch):
+    from app.core.config import settings
+    from app.routers import video_router
+
+    original_limit = settings.VIDEO_UPLOAD_MAX_BYTES
+    original_upload_dir = settings.VIDEO_UPLOAD_DIR
+
+    tmp_upload_dir = Path("test_uploads")
+    monkeypatch.setattr(settings, "VIDEO_UPLOAD_MAX_BYTES", 10)
+    monkeypatch.setattr(settings, "VIDEO_UPLOAD_DIR", str(tmp_upload_dir))
+    monkeypatch.setattr(video_router, "upload_root", tmp_upload_dir)
+
+    try:
+        response = await admin_client.post(
+            "/videos/upload",
+            files={"file": ("big.mp4", b"0123456789ABCDEF", "video/mp4")},
+        )
+        assert response.status_code == 413
+        assert not any(tmp_upload_dir.glob("*.mp4"))
+    finally:
+        monkeypatch.setattr(settings, "VIDEO_UPLOAD_MAX_BYTES", original_limit)
+        monkeypatch.setattr(settings, "VIDEO_UPLOAD_DIR", original_upload_dir)
+        monkeypatch.setattr(video_router, "upload_root", Path(original_upload_dir))
+        if tmp_upload_dir.exists():
+            for f in tmp_upload_dir.glob("*.mp4"):
+                f.unlink(missing_ok=True)
+            tmp_upload_dir.rmdir()
 
 
 @pytest.mark.asyncio

@@ -2,9 +2,13 @@ from typing import List, Tuple
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.favorite import Favorite
+from app.models.recommendation import Recommendation
 from app.models.video import Video
+from app.models.watch_session import WatchSession
 from app.repositories.video_repository import VideoRepository
 from app.repositories.genre_repository import GenreRepository
 from app.repositories.category_repository import CategoryRepository
@@ -107,6 +111,11 @@ class VideoService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Video not found",
             )
+
+        # Cleanup dependent rows with NOT NULL FKs before deleting the video.
+        await db.execute(delete(WatchSession).where(WatchSession.video_id == video_id))
+        await db.execute(delete(Favorite).where(Favorite.video_id == video_id))
+        await db.execute(delete(Recommendation).where(Recommendation.video_id == video_id))
         await self.video_repo.delete(db, video)
 
     async def list_videos(

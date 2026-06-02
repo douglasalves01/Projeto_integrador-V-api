@@ -9,7 +9,7 @@ from app.core.constants import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from app.database.session import get_db
 from app.models.user import UserRole
 from app.schemas.pagination import PaginatedResponse
-from app.schemas.user import UserResponse
+from app.schemas.user import UserProfileUpdate, UserResponse
 from app.services.user_service import UserService
 
 router = APIRouter()
@@ -22,6 +22,20 @@ async def get_my_profile(
     db: AsyncSession = Depends(get_db),
 ):
     user = await user_service.get_profile(db, UUID(current_user["user_id"]))
+    return user
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_my_profile(
+    payload: UserProfileUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await user_service.update_profile(
+        db,
+        UUID(current_user["user_id"]),
+        payload,
+    )
     return user
 
 

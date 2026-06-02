@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     # Com videos[] preenchido, reply vem do catalogo (nao do VodChat alucinado).
     CHAT_PREFER_CATALOG_REPLY: bool = True
 
+    # Upload de videos (dashboard admin)
+    VIDEO_UPLOAD_DIR: str = "/tmp/streamiq_uploads"
+    VIDEO_PUBLIC_BASE_URL: str = ""
+    VIDEO_UPLOAD_MAX_BYTES: int = 524288000  # 500 MB
+
     model_config = SettingsConfigDict(
         env_file=_env_files(),
         case_sensitive=True,

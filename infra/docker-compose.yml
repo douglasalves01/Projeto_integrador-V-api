@@ -62,6 +62,7 @@ services:
       SEMANTIC_SEARCH_ENABLED: "true"
       VIDEO_STORAGE_DIR: /app/videos_storage
       CATALOG_PARQUET: /app/ai_data/contents.parquet
+      VIDEO_UPLOAD_DIR: /app/uploads
     ports:
       - "8001:8000"
     volumes:
@@ -70,6 +71,8 @@ services:
       # Arquivos .mp4 do dataset (versionados no repo, otimizados ~3MB cada)
       # Override pelo .env: VIDEO_STORAGE_HOST_DIR=/outro/caminho/absoluto
       - ${VIDEO_STORAGE_HOST_DIR:-../apps/api/videos_storage}:/app/videos_storage:ro
+      # Uploads realizados pelo dashboard admin (persistente no host)
+      - ${VIDEO_UPLOADS_HOST_DIR:-../apps/api/uploads}:/app/uploads
     depends_on:
       db:
         condition: service_healthy

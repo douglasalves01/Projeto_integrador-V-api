@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.hashing import hash_password
 from app.models.user import User, UserRole
 from app.repositories.user_repository import UserRepository
-from app.schemas.user import UserCreate
+from app.schemas.user import UserCreate, UserProfileUpdate
 
 
 class UserService:
@@ -51,6 +51,21 @@ class UserService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found",
             )
+        return user
+
+    async def update_profile(
+        self, db: AsyncSession, user_id: UUID, profile_data: UserProfileUpdate
+    ) -> User:
+        user = await self.user_repo.get_by_id(db, user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        user.name = profile_data.name.strip()
+        await db.flush()
+        await db.refresh(user)
         return user
 
     async def list_users(
